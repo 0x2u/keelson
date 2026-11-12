@@ -251,7 +251,7 @@ jobs:
       # The tests never pull: they use what is on the host.
       - name: Pull the images the tests build from or run
         run: |
-          for image in alpine:3.20 nginx:alpine postgres:16-alpine caddy:2-alpine; do docker pull --quiet "$image"; done
+          for image in alpine:3.20 nginx:alpine postgres:16-alpine caddy:2-alpine prom/prometheus; do docker pull --quiet "$image"; done
       - name: Real engine tests
         working-directory: agent
         run: go test -p 1 -count=1 -run '^TestReal' -v ./internal/...

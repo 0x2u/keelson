@@ -90,6 +90,46 @@ The soak sees what `127.0.0.1` sees: the app itself, not Cloudflare, the proxy o
 
 Set `health_path`. An image `HEALTHCHECK` that hardcodes a port (`fetch('http://127.0.0.1:3000/...')`) probes the other instance, so Docker calls a broken new container healthy. `health_path` asks the port the container really listens on. Better still, make the `HEALTHCHECK` read the same variable (`process.env.PORT`). Otherwise Docker marks the new container `unhealthy` once the old one is stopped. That is cosmetic, but it shows in `docker ps` and in the dashboard.
 
+## Metric gates: judging the new version by your metrics
+
+A page that answers 200 says the app is up, not that it is right. A version can serve every page and still double the error rate, or answer in three seconds instead of three hundred milliseconds. If you already run Prometheus, give the soak the numbers that decide: during the soak the agent asks it each metric's query, and a value out of bounds several evaluations in a row sends traffic back to the previous version, through the same path as a page that fails.
+
+```yaml
+apps:
+  - name: shop
+    domains: [www.shop.example]
+    health_path: /api/health
+    soak: 2m
+    analysis:
+      address: http://127.0.0.1:9090     # default; Prometheus, Mimir, VictoriaMetrics or Thanos
+      metrics:
+        - name: error-rate
+          query: |
+            sum(rate(http_requests_total{app="{{app}}",code=~"5.."}[1m]))
+            / sum(rate(http_requests_total{app="{{app}}"}[1m]))
+          max: 0.02                      # at most 2% of the requests
+          interval: 15s                  # default 10s, at least 1s
+          failure_limit: 3               # bad evaluations in a row that roll back (default 3)
+        - name: p95-latency
+          query: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{app="{{app}}"}[1m])))
+          max: 0.8
+        - name: memory
+          query: container_memory_working_set_bytes{name="{{container}}"}   # cAdvisor
+          max: 400e6
+          no_data: fail                  # no sample at all is a failure (default: pass)
+```
+
+- **When it is asked.** Each metric is asked every `interval`, the first time one interval after the soak starts, so that a `[1m]` rate has samples of the new version to work on. Each one is also asked at least once, however long its interval. The soak must be long enough for `failure_limit` evaluations to fit (`soak / interval`); the agent refuses a file where the gate could never trip.
+- **What it judges.** The query must answer a number: a scalar or an instant vector. Every sample of a vector is judged, so `max` holds for the worst series. `max` is the highest value that is fine, `min` the lowest (a success rate); set one or both. A `NaN` (a rate of nothing over nothing) is no data.
+- **What counts as bad.** A value outside the bounds. A query that fails (Prometheus down, a timeout of 10 s, a syntax error, an answer that is not a number) counts as bad too: a gate that cannot be asked cannot vouch for the version. No data passes by default, since an app nobody has called has no error rate; `no_data: fail` makes it bad. A good evaluation resets the run, so one noisy sample does not roll back a deployment.
+- **Variables.** `{{app}}`, `{{container}}` (the new container's name) and `{{version}}` (the image reference being deployed) are replaced in the query, escaped for a PromQL string. Use them to tell the new version from the previous one, which still serves part of the soak: with the same label on both, a rate mixes them.
+- **What you see.** The deployment's events say what each metric answered the first time and every time it changes, each bad evaluation with its count (`metric error-rate: 0.12, above the maximum 0.02 (2 of 3)`), and a summary when the soak holds. The error of a rolled back deployment names the metric, the value and the bound.
+- **What it needs.** The Prometheus must be reachable from the agent, not from the dashboard: the queries are made by the agent, at the address you give (no credentials in it: put a local proxy that adds them in front). It is only for blue/green apps (an app with `port` or `domains`) with a soak above `0s`; a preview instance does not inherit it.
+
+`keelson-agent config validate` checks the structure and every rule above. It does not ask Prometheus: try each query in its UI first, and check that it returns one number.
+
+It is tested end to end against a real Prometheus and a real Docker engine (`TestRealMetricGateAgainstPrometheus`): a version whose pages all answer 200 but whose exported metric is bad is rolled back.
+
 ## What a request chooses
 
 A request only chooses the tag or digest. The repository comes from the apps file, so an API caller cannot make the agent run an arbitrary image.

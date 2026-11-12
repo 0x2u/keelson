@@ -67,6 +67,7 @@ type rtApp struct {
 	DrainSeconds         *float64          `json:"drain_seconds"`
 	SoakSeconds          *float64          `json:"soak_seconds"`
 	Verify               []rtVerify        `json:"verify"`
+	Analysis             *rtAnalysis       `json:"analysis"`
 	KeepImages           int               `json:"keep_images"`
 	Log                  rtLog             `json:"log"`
 	Routing              rtRouting         `json:"routing"`
@@ -86,6 +87,21 @@ type rtAppManagedDB struct {
 type rtVerify struct {
 	Path   string `json:"path"`
 	Status int    `json:"status"`
+}
+
+type rtAnalysis struct {
+	Address string     `json:"address"`
+	Metrics []rtMetric `json:"metrics"`
+}
+
+type rtMetric struct {
+	Name            string   `json:"name"`
+	Query           string   `json:"query"`
+	Max             *float64 `json:"max"`
+	Min             *float64 `json:"min"`
+	IntervalSeconds float64  `json:"interval_seconds"`
+	FailureLimit    int      `json:"failure_limit"`
+	NoData          string   `json:"no_data"`
 }
 
 type rtLog struct {
@@ -391,6 +407,15 @@ func (c *Config) appRuntime(a App) rtApp {
 	}
 	for _, v := range a.Verify {
 		out.Verify = append(out.Verify, rtVerify{Path: v.Path, Status: v.Status})
+	}
+	if a.Analysis != nil {
+		out.Analysis = &rtAnalysis{Address: a.Analysis.PrometheusAddress(), Metrics: []rtMetric{}}
+		for _, m := range a.Analysis.Metrics {
+			out.Analysis.Metrics = append(out.Analysis.Metrics, rtMetric{
+				Name: m.Name, Query: m.Query, Max: m.Max, Min: m.Min,
+				IntervalSeconds: m.EveryOrDefault().Seconds(), FailureLimit: m.LimitOrDefault(), NoData: m.NoData,
+			})
+		}
 	}
 	if a.Log != nil {
 		out.Log = rtLog{Driver: a.Log.Driver, MaxSizeBytes: a.Log.MaxSizeOrDefault().Bytes(), MaxFile: a.Log.MaxFileOrDefault()}

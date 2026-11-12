@@ -46,6 +46,7 @@ import { Input } from "@/components/ui/input";
 import type { AppConfig, BuildConfig, ConfigIssue, PortConfig, ReleaseStepConfig } from "@/lib/agent-types";
 import { createdNotice, portParts, reviewChanges, saveEffect, saveNotice } from "@/lib/app-config-core";
 import { verifyError, verifyFromLines, verifyLine } from "@/lib/soak-config-core";
+import { analysisErrors, analysisFromDraft, emptyMetric, MAX_METRICS, metricDraft, DEFAULT_PROMETHEUS, type MetricDraft } from "@/lib/analysis-config-core";
 import { mergeBuild, optionsFromBuild, presetOf, PRESET_LIST, validatePresetOptions, type PresetErrors, type PresetField, type PresetId, type PresetOptions } from "@/lib/presets-core";
 
 type AppRestart = Exclude<NonNullable<AppConfig["restart"]>, "">;
@@ -114,6 +115,8 @@ interface AppDraft {
   drain: string;
   soak: string;
   verify: string[];
+  analysisAddress: string;
+  metrics: MetricDraft[];
   steps: StepDraft[];
   onRollback: boolean;
   logDriver: LogDriver | "default";
@@ -186,6 +189,8 @@ export function draftFromApp(app: AppConfig | undefined): AppDraft {
     drain: app?.drain ?? "",
     soak: app?.soak ?? "",
     verify: (app?.verify ?? []).map(verifyLine),
+    analysisAddress: app?.analysis?.address ?? "",
+    metrics: (app?.analysis?.metrics ?? []).map(metricDraft),
     steps: app?.release?.steps.map(stepDraft) ?? [],
     onRollback: app?.release?.on_rollback ?? false,
     logDriver: app?.log?.driver ?? "default",
@@ -273,6 +278,8 @@ export function appFromDraft(d: AppDraft): AppConfig {
   if (soak) app.soak = soak;
   const verify = verifyFromLines(d.verify);
   if (verify.length > 0) app.verify = verify;
+  const analysis = analysisFromDraft(d.analysisAddress, d.metrics);
+  if (analysis) app.analysis = analysis;
   if (d.steps.length > 0) {
     app.release = { steps: d.steps.map(stepConfig) };
     if (d.onRollback) app.release.on_rollback = true;
@@ -358,6 +365,7 @@ function validateApp(d: AppDraft, creating: boolean, existingNames: string[]): R
   if (soak) errors.soak = soak;
   const verify = verifyError(d.verify);
   if (verify) errors.verify = verify;
+  Object.assign(errors, analysisErrors(d.analysisAddress, d.metrics, d.soak));
 
   const logSize = optionalText(d.logMaxSize);
   if (logSize && !LOG_SIZE.test(logSize)) errors["log.max_size"] = "A number and k, m or g, for example 10m.";
@@ -391,6 +399,7 @@ const SECTION_FIELDS = {
   environment: ["env_file", "env"],
   networking: ["network", "publish", "volumes", "domains", "port", "health_path"],
   timing: ["stop_timeout", "health_timeout", "stable_after", "drain", "soak", "verify"],
+  gates: ["analysis"],
   housekeeping: ["log", "keep_images"],
   release: ["release"],
   build: ["build"],
@@ -453,6 +462,13 @@ export function AppForm({
     set(
       "steps",
       draft.steps.map((s, i) => (i === index ? step : s)),
+    );
+  }
+
+  function setMetric(index: number, metric: MetricDraft) {
+    set(
+      "metrics",
+      draft.metrics.map((m, i) => (i === index ? metric : m)),
     );
   }
 
@@ -800,6 +816,57 @@ export function AppForm({
       </FormSection>
 
       <FormSection
+        title="Metric gates"
+        description="With a proxy: after the traffic switch, the new version is judged by your Prometheus. A metric out of bounds several evaluations in a row sends traffic back to the previous version."
+        problems={sectionProblems(server, SECTION_FIELDS.gates)}
+      >
+        {draft.metrics.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No metric gate. The soak then only checks the container and the pages above. Add one to roll back on an error rate or a latency.</p>
+        ) : (
+          <TextField
+            id={id("analysis_address")}
+            label="Prometheus address"
+            help={`Where the agent asks, from the server. Anything that answers the Prometheus query API works. Default ${DEFAULT_PROMETHEUS}. No credentials in the address.`}
+            error={fe.error("analysis.address")}
+            value={draft.analysisAddress}
+            onChange={(v) => set("analysisAddress", v)}
+            onBlur={touch("analysis.address")}
+            placeholder={DEFAULT_PROMETHEUS}
+            mono
+          />
+        )}
+        {draft.metrics.map((metric, i) => (
+          <MetricGateEditor
+            key={i}
+            id={id(`metric-${i}`)}
+            index={i}
+            count={draft.metrics.length}
+            metric={metric}
+            error={(field) => fe.error(`analysis.${i}.${field}`)}
+            onChange={(next) => setMetric(i, next)}
+            onMove={(delta) => set("metrics", moveItem(draft.metrics, i, delta))}
+            onRemove={() =>
+              set(
+                "metrics",
+                draft.metrics.filter((_, j) => j !== i),
+              )
+            }
+          />
+        ))}
+        {fe.error("analysis") && (
+          <p role="alert" className="text-sm font-medium text-destructive-text">
+            {fe.error("analysis")}
+          </p>
+        )}
+        {draft.metrics.length < MAX_METRICS && (
+          <Button type="button" variant="outline" size="sm" onClick={() => set("metrics", [...draft.metrics, emptyMetric()])}>
+            <ICONS.add />
+            Add metric
+          </Button>
+        )}
+      </FormSection>
+
+      <FormSection
         title="Logs and old images"
         description="Keep the server's disk from filling up. Logs are rotated and old images removed after each successful deploy."
         flagged={sectionProblems(server, SECTION_FIELDS.housekeeping) !== undefined}
@@ -1082,6 +1149,92 @@ function ReleaseStepEditor({
         help="Otherwise a failing step stops the deploy."
         checked={step.continueOnFailure}
         onChange={(continueOnFailure) => onChange({ ...step, continueOnFailure })}
+      />
+    </fieldset>
+  );
+}
+
+const NO_DATA_OPTIONS: { value: "default" | "pass" | "fail"; label: string }[] = [
+  { value: "default", label: "Pass (default)" },
+  { value: "pass", label: "Pass" },
+  { value: "fail", label: "Count as a failure" },
+];
+
+function MetricGateEditor({
+  id,
+  index,
+  count,
+  metric,
+  error,
+  onChange,
+  onMove,
+  onRemove,
+}: {
+  id: string;
+  index: number;
+  count: number;
+  metric: MetricDraft;
+  error: (field: string) => string | undefined;
+  onChange: (metric: MetricDraft) => void;
+  onMove: (delta: number) => void;
+  onRemove: () => void;
+}) {
+  const noun = `metric ${index + 1}${metric.name.trim() ? ` (${metric.name.trim()})` : ""}`;
+  return (
+    <fieldset className="space-y-4 rounded-lg border p-4">
+      <legend className="sr-only">Metric gate {noun}</legend>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium" aria-hidden>
+          Metric {index + 1}
+        </p>
+        <ReorderButtons noun={noun} index={index} count={count} onMove={onMove} onRemove={onRemove} />
+      </div>
+      <TextField id={`${id}-name`} label="Name" required help="Shown in the deployment's events and in the error." error={error("name")} value={metric.name} onChange={(name) => onChange({ ...metric, name })} placeholder="error-rate" mono />
+      <TextField
+        id={`${id}-query`}
+        label="PromQL query"
+        required
+        help="It must answer a number: a scalar, or an instant vector of which every sample is judged. {{app}}, {{container}} (the new container) and {{version}} (the image being deployed) are replaced in it."
+        error={error("query")}
+        value={metric.query}
+        onChange={(query) => onChange({ ...metric, query })}
+        placeholder={'sum(rate(http_requests_total{app="{{app}}",code=~"5.."}[1m])) / sum(rate(http_requests_total{app="{{app}}"}[1m]))'}
+        mono
+      />
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <TextField id={`${id}-max`} label="Maximum" help="The highest value that is fine." error={error("max")} value={metric.max} onChange={(max) => onChange({ ...metric, max })} inputMode="decimal" placeholder="0.02" mono />
+        <TextField id={`${id}-min`} label="Minimum" help="The lowest value that is fine." error={error("min")} value={metric.min} onChange={(min) => onChange({ ...metric, min })} inputMode="decimal" placeholder="0.99" mono />
+        <DurationField
+          id={`${id}-interval`}
+          label="Interval"
+          help={`How often it is asked, at least 1s. ${DURATION_HINT}`}
+          error={error("interval")}
+          value={metric.interval}
+          onChange={(interval) => onChange({ ...metric, interval })}
+          placeholder="10s"
+        />
+        <TextField
+          id={`${id}-failure-limit`}
+          label="Failures in a row"
+          help="Bad evaluations in a row that roll back."
+          error={error("failure_limit")}
+          value={metric.failureLimit}
+          onChange={(failureLimit) => onChange({ ...metric, failureLimit })}
+          inputMode="numeric"
+          placeholder="3"
+          mono
+        />
+      </div>
+      <SelectField
+        id={`${id}-no-data`}
+        label="When the query returns nothing"
+        help="An app nobody has called has no error rate: the default lets it pass."
+        value={metric.noData === "" ? "default" : metric.noData}
+        onChange={(value) => {
+          const option = NO_DATA_OPTIONS.find((o) => o.value === value);
+          if (option) onChange({ ...metric, noData: option.value === "default" ? "" : option.value });
+        }}
+        options={NO_DATA_OPTIONS}
       />
     </fieldset>
   );

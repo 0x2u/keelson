@@ -54,6 +54,10 @@ func healthBudget(a config.App) time.Duration {
 // of requests, the stop of the previous container or the way back to it, and the cleanup.
 func soakBudget(a config.App) time.Duration {
 	rounds := time.Duration(len(a.Verify)+1) * 2 * probeTimeout
+	if a.Analysis != nil {
+		// a round that is late for the deadline still asks each metric once more: the budget holds two slow rounds
+		rounds += time.Duration(len(a.Analysis.Metrics)) * 2 * metricTimeout
+	}
 	return a.DrainFor() + a.SoakFor() + rounds + 2*a.Stop() + cleanupTimeout
 }
 

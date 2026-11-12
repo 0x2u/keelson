@@ -51,6 +51,7 @@ Not tested on real servers:
 ## Deployments
 
 - A rollback restores the image, not the database schema. A migration that fails halfway is not undone, which is why the pre-migration backup step exists.
+- Metric gates ask the instant query API of a Prometheus-compatible server, once per interval, with no credentials (put a local proxy in front for one that needs them). They judge numbers, not traffic: there is no canary that sends a share of requests to the new version, so the metric is only as good as your labels at telling the new container from the old one. The gate against a real Prometheus is tested; Mimir, VictoriaMetrics and Thanos are assumed to answer the same API and have not been tried.
 - Tabs that stay open across a switch do not get the previous version's static assets. A container's logs go away with the container at each switch.
 - A deployment of an image without a `HEALTHCHECK` waits the `stable_after` delay (about 10 s) at the Switch step. When a container reports unhealthy, the healthcheck's own output is not included.
 - The agent's schema upgrade only goes forward. `agent.db` is copied first, and an older agent refuses a newer schema.

@@ -1,9 +1,35 @@
 {
   "$defs": {
+    "Analysis": {
+      "additionalProperties": false,
+      "description": "Analysis judges the new version by metrics during the soak: after the traffic switch each metric's query is asked of a Prometheus, and a value outside its bounds, a number of evaluations in a row, sends traffic back to the previous version.",
+      "properties": {
+        "address": {
+          "description": "Address is the base URL of the Prometheus (or of anything that answers its query API: Mimir, VictoriaMetrics, Thanos), such as http://127.0.0.1:9090. A path prefix is kept (https://metrics.example.com/prometheus). It holds no credentials: put an authenticating proxy in front, on this server. Default http://127.0.0.1:9090.",
+          "type": "string"
+        },
+        "metrics": {
+          "description": "Metrics are the gates, at most 5. Every one must hold.",
+          "items": {
+            "$ref": "#/$defs/Metric"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "App": {
       "additionalProperties": false,
       "description": "App is one container the agent deploys and keeps running.",
       "properties": {
+        "analysis": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Analysis"
+            }
+          ],
+          "description": "Analysis judges the new version by Prometheus queries during the soak and rolls back when they leave their bounds. See Analysis."
+        },
         "build": {
           "allOf": [
             {
@@ -602,6 +628,44 @@
             }
           ],
           "description": "MaxSize is the size at which a log file is rotated. Default 10m."
+        }
+      },
+      "type": "object"
+    },
+    "Metric": {
+      "additionalProperties": false,
+      "description": "Metric is one gate: a PromQL query and the bounds its value must stay within.",
+      "properties": {
+        "failure_limit": {
+          "description": "FailureLimit is how many evaluations in a row must be bad before the deployment is rolled back. Default 3.",
+          "type": "integer"
+        },
+        "interval": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "Interval is how often the query is asked. Default 10s, at least 1s. The first evaluation is one interval after the soak starts, so that a rate has samples of the new version to work on."
+        },
+        "max": {
+          "description": "Max is the highest value that is fine (an error rate: 0.01). Min is the lowest (a success rate: 0.99). At least one.",
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "name": {
+          "description": "Name labels the gate in the deployment's events and in the error (letters, digits, - and _).",
+          "type": "string"
+        },
+        "no_data": {
+          "description": "NoData is what an empty answer counts as: \"pass\" (default; a quiet app has no traffic to judge) or \"fail\".",
+          "type": "string"
+        },
+        "query": {
+          "description": "Query is a PromQL expression. {{app}}, {{container}} (the new container) and {{version}} (the image reference being deployed) are replaced by their value, escaped for a PromQL string. The query must answer a number: a scalar or an instant vector, every sample of which is judged.",
+          "type": "string"
         }
       },
       "type": "object"

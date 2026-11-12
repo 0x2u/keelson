@@ -91,7 +91,7 @@ func (d *Deployer) executeProxied(ctx context.Context, id string, a config.App, 
 	// The previous version is still running: if the new one fails now, traffic goes back to it.
 	if a.SoakFor() > 0 {
 		d.phase(id, store.PhaseSoak)
-		if err := d.soak(ctx, id, a, name, port); err != nil {
+		if err := d.soak(ctx, id, a, name, ref, port); err != nil {
 			return d.undoSwitch(ctx, id, a, name, hadOld, old, err)
 		}
 	} else {

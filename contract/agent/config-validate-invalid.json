@@ -2,7 +2,7 @@
   "issues": [
     {
       "file": "apps.yaml",
-      "line": 180,
+      "line": 183,
       "message": "unknown key \"colour\" in the document",
       "path": "yaml",
       "severity": "error"
@@ -10,7 +10,7 @@
     {
       "code": "deprecated",
       "file": "apps.yaml",
-      "line": 65,
+      "line": 68,
       "message": "run is deprecated: use host",
       "path": "apps[shop].release.steps[warm].run",
       "severity": "warning"

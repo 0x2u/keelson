@@ -81,39 +81,58 @@ func (d *Deployer) checkAdoption(ctx context.Context, a config.App) error {
 // soak watches the new version for the app's soak after the traffic switched to it. Every round it looks at the container
 // (still running, not restarting, not unhealthy) and requests health_path and each verify path on 127.0.0.1:<port>; a
 // request that fails is asked once more at once before it counts, because one dropped packet must not undo a good
-// deployment. It always makes a round at the start and one at the end. A nil return means the new version held.
+// deployment. It always makes a round at the start and one at the end. When the app has an analysis, each of its metrics
+// is asked of Prometheus every interval (see gateRound) and a metric that is out of bounds failure_limit times in a row
+// ends the soak as a failure. A nil return means the new version held.
 //
-// What it sees is what 127.0.0.1 sees: the app, not Cloudflare, the proxy or DNS.
-func (d *Deployer) soak(ctx context.Context, id string, a config.App, name string, port int) error {
+// What the pages show is what 127.0.0.1 sees: the app, not Cloudflare, the proxy or DNS.
+func (d *Deployer) soak(ctx context.Context, id string, a config.App, name, ref string, port int) error {
 	checks := d.soakChecks(a)
+	gates := d.newGates(a, name, ref)
 	wait := a.SoakFor()
-	d.event(id, "info", "watching the new version for %s (%s)", wait, describeChecks(checks))
+	d.event(id, "info", "watching the new version for %s (%s)", wait, describeChecks(checks, gates))
 	deadline := d.now().Add(wait)
 	rounds := 0
-	for {
+	round := func() error {
 		if err := d.soakRound(ctx, name, port, checks); err != nil {
 			return err
 		}
 		rounds++
+		return d.gateRound(ctx, id, a, gates, false)
+	}
+	for {
+		if err := round(); err != nil {
+			return err
+		}
 		left := deadline.Sub(d.now())
 		if left <= 0 {
 			break
 		}
 		step := min(d.soakEvery, left)
+		if at := nextGate(gates); !at.IsZero() {
+			// wake up when a metric is due, so that its evaluations fall on its interval and the last one on the deadline
+			step = max(min(step, at.Sub(d.now())), time.Millisecond)
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(step):
 		}
 		if !d.now().Before(deadline) {
-			if err := d.soakRound(ctx, name, port, checks); err != nil {
+			if err := round(); err != nil {
 				return err
 			}
-			rounds++
 			break
 		}
 	}
-	d.event(id, "info", "the new version held for the full %s (%d checks of %s)", wait, rounds, describeChecks(checks))
+	// A metric whose first evaluation would have come after the end is still judged once.
+	if err := d.gateRound(ctx, id, a, gates, true); err != nil {
+		return err
+	}
+	if len(gates) > 0 {
+		d.event(id, "info", "metrics: %s", summarizeGates(gates))
+	}
+	d.event(id, "info", "the new version held for the full %s (%d checks of %s)", wait, rounds, describeChecks(checks, gates))
 	return nil
 }
 
@@ -137,15 +156,22 @@ func (d *Deployer) soakChecks(a config.App) []soakCheck {
 	return out
 }
 
-func describeChecks(checks []soakCheck) string {
-	if len(checks) == 0 {
+func describeChecks(checks []soakCheck, gates []*metricGate) string {
+	parts := []string{"the container"}
+	if len(checks) > 0 {
+		paths := make([]string, len(checks))
+		for i, c := range checks {
+			paths[i] = c.path
+		}
+		parts = append(parts, strings.Join(paths, ", "))
+	}
+	if len(gates) > 0 {
+		parts = append(parts, "metrics "+describeGates(gates))
+	}
+	if len(parts) == 1 {
 		return "the container only"
 	}
-	paths := make([]string, len(checks))
-	for i, c := range checks {
-		paths[i] = c.path
-	}
-	return "the container and " + strings.Join(paths, ", ")
+	return strings.Join(parts[:1], "") + " and " + strings.Join(parts[1:], " and ")
 }
 
 func (d *Deployer) soakRound(ctx context.Context, name string, port int, checks []soakCheck) error {

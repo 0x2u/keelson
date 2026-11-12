@@ -568,6 +568,26 @@ export interface AppDatabaseConfig {
   backups?: DatabaseBackupConfig;
 }
 
+/** One gate of an analysis: a PromQL query and the bounds its value must stay within. */
+export interface MetricGateConfig {
+  name: string;
+  query: string;
+  max?: number;
+  min?: number;
+  /** How often the query is asked; the agent's default is 10s. */
+  interval?: string;
+  /** Bad evaluations in a row that roll the deployment back; the agent's default is 3. */
+  failure_limit?: number;
+  /** What a query that returns nothing counts as; the agent's default is pass. */
+  no_data?: "pass" | "fail";
+}
+
+export interface AnalysisConfig {
+  /** The base URL of the Prometheus; the agent's default is http://127.0.0.1:9090. */
+  address?: string;
+  metrics: MetricGateConfig[];
+}
+
 export interface AppConfig {
   name: string;
   project?: string;
@@ -589,6 +609,8 @@ export interface AppConfig {
   soak?: string;
   /** Pages requested on the new version during the soak; status defaults to any 2xx. */
   verify?: { path: string; status?: number }[];
+  /** Prometheus queries that judge the new version during the soak: out of bounds a few times in a row, traffic goes back. */
+  analysis?: AnalysisConfig;
   domains?: string[];
   port?: PortConfig;
   health_path?: string;

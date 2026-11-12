@@ -290,6 +290,12 @@ const appConfig = shape(
     drain: opt(durations),
     soak: opt(durations),
     verify: opt(list(shape({ path: str, status: opt(num) }))),
+    analysis: opt(
+      shape({
+        address: opt(str),
+        metrics: list(shape({ name: str, query: str, max: opt(num), min: opt(num), interval: opt(durations), failure_limit: opt(num), no_data: opt(oneOf("pass", "fail")) })),
+      }),
+    ),
     domains: opt(strings),
     port: opt(portConfig),
     health_path: opt(str),

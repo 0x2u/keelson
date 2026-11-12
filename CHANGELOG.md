@@ -4,6 +4,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- **Metric gates**: an app's `analysis:` block lists Prometheus queries (a PromQL expression with `{{app}}`, `{{container}}` and `{{version}}`, `max` and/or `min`, `interval`, `failure_limit`, `no_data`) that the agent asks during the soak. A value out of bounds `failure_limit` evaluations in a row sends traffic back to the previous version, as a failing page does. A failed query counts as bad; a quiet app passes unless `no_data: fail`. The apps file refuses a gate the soak is too short to ever trip. The events of the deployment say what each metric answered; the dashboard's app form has a section to edit them. Covered by a test against a real Prometheus and a real Docker engine. See [Deployments](docs/reference/deployments.md#metric-gates-judging-the-new-version-by-your-metrics).
+
 ## [0.1.0] - 2026-11-12
 
 First public version. Keelson is pre-1.0: expect rough edges (see [limitations](docs/limitations.md)).

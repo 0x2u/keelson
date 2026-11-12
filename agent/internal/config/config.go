@@ -117,6 +117,9 @@ type App struct {
 	Soak *Duration `yaml:"soak"`
 	// Verify lists pages requested on the new container during the soak, next to health_path.
 	Verify []Verify `yaml:"verify"`
+	// Analysis judges the new version by Prometheus queries during the soak and rolls back when they leave their bounds.
+	// See Analysis.
+	Analysis *Analysis `yaml:"analysis"`
 	// Build, when set, lets the dashboard have this agent build the image from a source archive (a GitHub App
 	// installation) instead of pulling one CI built. See Build.
 	Build *Build `yaml:"build"`
@@ -424,7 +427,10 @@ func (c *Config) validateApp(a *App, seen map[string]bool) error {
 	if err := validateDrain(a); err != nil {
 		return err
 	}
-	return validateSoak(a)
+	if err := validateSoak(a); err != nil {
+		return err
+	}
+	return validateAnalysis(a)
 }
 
 // validateRouting checks the routing keys and the deploy strategy of one app, and fills the runtime form of its port.

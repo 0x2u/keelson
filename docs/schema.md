@@ -63,7 +63,7 @@ The dump is independent of the YAML:
 Per app, the dump covers:
 
 - labels, image, environment variable names, command, volumes, network, restart policy;
-- stop, health and stable timeouts, drain and soak, verify paths, `keep_images`, log options;
+- stop, health and stable timeouts, drain and soak, verify paths, metric gates (Prometheus address, queries, bounds, interval, limit), `keep_images`, log options;
 - routing: domains, published ports, the container port the proxy forwards to, the two host ports and their variable, the health path;
 - release steps by kind with their timeouts;
 - the build block with its defaults and the network it really runs on;

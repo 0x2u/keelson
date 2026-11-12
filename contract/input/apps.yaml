@@ -54,6 +54,9 @@ apps:
     verify:
       - {path: /}
       - {path: /login, status: 302}
+    analysis:
+      metrics:
+        - {name: error-rate, query: 'sum(rate(http_requests_total{app="{{app}}",code=~"5.."}[1m])) / sum(rate(http_requests_total{app="{{app}}"}[1m]))', max: 0.02, interval: 15s, failure_limit: 3}
     keep_images: 5
     log: {driver: local, max_size: 50m, max_file: 5}
     release:

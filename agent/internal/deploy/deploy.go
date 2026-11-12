@@ -148,6 +148,7 @@ type Deployer struct {
 	soakEvery time.Duration
 	now       func() time.Time
 	http      *http.Client // health_path probes
+	prom      *http.Client // Prometheus queries of an analysis (the per-query timeout is the context's)
 	emitter   notify.Emitter
 	// builder builds images for StartBuild; nil when the agent cannot build. buildCtx ends when the agent shuts down,
 	// which cancels a running build.
@@ -185,7 +186,7 @@ func New(eng Engine, st *store.Store, cfg *config.Config, px Proxy, log *slog.Lo
 		// A redirect is an answer, not a failure to follow.
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	d := &Deployer{eng: eng, store: st, proxy: px, log: log, PollEvery: time.Second, soakEvery: 3 * time.Second, now: time.Now, http: probe, active: map[string]bool{}}
+	d := &Deployer{eng: eng, store: st, proxy: px, log: log, PollEvery: time.Second, soakEvery: 3 * time.Second, now: time.Now, http: probe, prom: &http.Client{}, active: map[string]bool{}}
 	d.buildCtx, d.buildCancel = context.WithCancel(context.Background())
 	d.cfg.Store(cfg)
 	return d

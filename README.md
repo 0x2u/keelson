@@ -99,6 +99,9 @@ apps:
     port: 3000
     health_path: /api/health            # must answer 2xx before traffic switches
     soak: 60s                           # watch the new version this long; go back if it fails
+    analysis:                           # ...and judge it by your Prometheus: out of bounds 3 times in a row, go back
+      metrics:
+        - {name: error-rate, query: 'sum(rate(http_requests_total{app="{{app}}",code=~"5.."}[1m])) / sum(rate(http_requests_total{app="{{app}}"}[1m]))', max: 0.02}
     release:
       steps:
         - {name: backup, backup: shop}  # a failed backup stops the deployment
@@ -129,6 +132,7 @@ The full reference is [Configuration](docs/reference/configuration.md) and the p
 
 **Deployments**
 - Health-gated deployments with automatic rollback, in place or blue/green behind Caddy or nginx. After the switch a *soak* watches the new version and puts the old one back if it turns bad.
+- **Metric gates**: during the soak the agent asks your Prometheus (or Mimir, VictoriaMetrics, Thanos) the queries you chose, an error rate or a latency, and sends traffic back to the previous version when one stays out of bounds. A version whose pages all answer 200 but whose numbers are bad does not stay. Tested against a real Prometheus.
 - Release steps before the switch: a host command, a command in a throwaway container (migrations), or a verified encrypted database backup that aborts the deployment if it fails.
 - Previews (Caddy only): once an app has a `previews:` template in its configuration (written in the YAML editor), each pull request from the same repository gets its own environment on its own domain. It is removed when the pull request closes, or at its TTL or the cap.
 - Builds on the server that runs the app, or on another server or a connected laptop, within memory and CPU limits. Nothing is pushed to a registry. Presets for Next.js, Node.js, Vite and static sites cover repositories without a Dockerfile.

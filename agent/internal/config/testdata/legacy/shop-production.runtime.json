@@ -30,6 +30,7 @@
           "status": 0
         }
       ],
+      "analysis": null,
       "keep_images": 3,
       "log": {
         "driver": "json-file",

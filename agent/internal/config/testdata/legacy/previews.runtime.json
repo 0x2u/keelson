@@ -22,6 +22,7 @@
       "drain_seconds": 5,
       "soak_seconds": 30,
       "verify": [],
+      "analysis": null,
       "keep_images": 3,
       "log": {
         "driver": "json-file",
@@ -96,6 +97,7 @@
         "drain_seconds": 5,
         "soak_seconds": null,
         "verify": [],
+        "analysis": null,
         "keep_images": 0,
         "log": {
           "driver": "json-file",
