@@ -1,0 +1,41 @@
+# An app that Keelson builds on this server from a GitHub App installation (docs/reference/builds.md, "Building on the server from a
+# GitHub App"): no CI workflow, nothing pushed to a registry.
+#
+# Nothing builds because of this block alone. It only lets the dashboard ask this agent to build: you still turn "build on
+# push" and/or "build previews" on for the app, on its Source page. A build executes the repository's Dockerfile on THIS
+# server, so enable it only for repositories you trust at that level. No secret reaches a build: `args` below are not
+# secret, and build-time credentials (BuildKit secrets, private base-image registries) are not supported.
+proxy:
+  acme_email: ops@example.com
+apps:
+  - name: shop
+    project: shop
+    environment: production
+    image: ghcr.io/acme/shop # the build is tagged ghcr.io/acme/shop:<commit sha> locally; nothing is pushed
+    env_file: /etc/keelson/shop.env # the running container's secrets: builds never read this file
+    port: 3000
+    health_path: /healthz
+    domains: [shop.example.com]
+    keep_images: 3 # the last versions stay on disk, built ones included: a rollback needs the image
+    build:
+      dockerfile: Dockerfile # relative to context (default Dockerfile)
+      context: . # a subdirectory of the repository (default .)
+      target: runner # optional multi-stage target
+      args:
+        NODE_ENV: production # build arguments are visible in the image history: never put a secret here
+      timeout: 15m # default 15m, at most 1h
+      memory: 2g # memory cap of the build's containers (default 2g)
+      cpus: 2 # CPU cap in cores (default 2)
+      # network: host                 # optional: build on the server's own network, to reach a database on 127.0.0.1 (see docs/reference/builds.md)
+      # platform: linux/amd64         # optional: build for this platform when the engine runs another one (a Mac building for a server)
+      max_source: 512m # a larger source archive is refused (default 512m)
+      # Where the source may be downloaded from. For GitHub Enterprise Server list its host instead:
+      #   source_hosts: [ghe.example.com]
+      source_hosts: [api.github.com, codeload.github.com]
+    # Pull requests from the same repository can be built into previews too: the template inherits the parent's build block
+    # (see previews.apps.yaml for the rest of a previews setup).
+    previews:
+      domain: pr-{pr}-shop.example.com
+      env: {NODE_ENV: production}
+      ttl: 72h
+      max: 5

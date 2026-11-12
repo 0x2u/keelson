@@ -1,0 +1,13 @@
+[
+  {
+    "applied_hash": "<hash>",
+    "apps": 1,
+    "databases": 0,
+    "hash": "<hash>",
+    "jobs": 2,
+    "modified_at": "2026-01-01T00:00:00Z",
+    "name": "blog",
+    "path": "projects.d/blog.yaml",
+    "previews": 1
+  }
+]

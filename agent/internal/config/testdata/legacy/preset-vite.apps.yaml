@@ -1,0 +1,16 @@
+# A Vite site (or any bundler that writes a directory of static files) Keelson builds and serves from this server
+# WITHOUT a Dockerfile in the repository (docs/reference/builds.md, "Build presets: no Dockerfile in the repository"): Node.js builds it, nginx serves it as a non-root user.
+proxy:
+  acme_email: ops@example.com
+
+apps:
+  - name: site
+    image: ghcr.io/acme/site
+    port: 8080                        # nginx listens on it (1024 or more: it does not run as root)
+    domains: [site.example.com]
+    build:
+      preset: vite
+      # build_command: pnpm run build   # default: <package manager> run build
+      # output_dir: dist                # the directory the build writes (default dist)
+      # spa: true                       # unknown paths answer with /index.html, for a client-side router (default true)
+      # node: "22"

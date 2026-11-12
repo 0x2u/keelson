@@ -1,0 +1,21 @@
+# The Keelson dashboard. Start it with `docker compose up -d`, then open http://localhost:3000 (the page asks for the setup token the
+# container logs on its first start). For your own domain with automatic HTTPS, add compose.tls.yaml (see install.sh).
+#   .env           KEELSON_VERSION (v0.1.0, default latest), KEELSON_DOMAIN: choices, never secrets. KEELSON_IMAGE and KEELSON_PORT are for testing.
+#   dashboard.env  optional: any other KEELSON_* variable for advanced hosting (docs/hosting.md); it wins over what the dashboard generates.
+name: keelson # fixed, so the project and its data volume do not change with the directory (--dir)
+services:
+  dashboard:
+    image: ${KEELSON_IMAGE:-ghcr.io/0x2u/keelson-dashboard}:${KEELSON_VERSION:-latest}
+    restart: unless-stopped
+    ports: ["127.0.0.1:${KEELSON_PORT:-3000}:3000"] # this machine only: reach it from elsewhere through HTTPS (compose.tls.yaml) or `ssh -L 3000:127.0.0.1:3000`
+    volumes: ["data:/data"] # the database and the master key: back it up (Settings, Backup)
+    environment:
+      KEELSON_INSECURE_COOKIES: "true" # plain http on the loopback address; compose.tls.yaml turns it off
+    env_file: [{ path: dashboard.env, required: false }]
+    # The dashboard only writes to /data and to temporary files: nothing else in the container needs to change or be allowed.
+    read_only: true
+    tmpfs: ["/tmp", "/app/.next/cache"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+volumes:
+  data:

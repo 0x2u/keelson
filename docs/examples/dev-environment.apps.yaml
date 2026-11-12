@@ -1,0 +1,28 @@
+# A dev environment next to production (docs/reference/deployments.md): an app like the others, in the same project, with its own variables and a
+# relaxed health gate. Nothing dev-specific exists in the agent: `environment` is a label the dashboard groups by, and the
+# health settings are the ones every app has.
+proxy:
+  acme_email: ops@example.com
+
+apps:
+  - name: shop
+    project: shop
+    environment: production
+    image: ghcr.io/acme/shop
+    env_file: /etc/keelson/shop.env
+    port: 3000
+    health_path: /healthz
+    domains: [shop.example.com]
+
+  - name: shop-dev
+    project: shop                            # same project: the Projects view lists it as the `dev` environment
+    environment: dev
+    image: ghcr.io/acme/shop
+    env_file: /etc/keelson/shop-dev.env      # its own variables and throwaway credentials, never production's
+    env:
+      LOG_LEVEL: debug
+    port: 3000
+    domains: [dev.shop.example.com]
+    health_timeout: 5m                       # slow cold starts and a debug build are fine here
+    stable_after: 3s                         # image without a HEALTHCHECK: ready sooner
+    keep_images: 2

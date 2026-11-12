@@ -1,0 +1,11 @@
+bin/
+*.test
+*.out
+dist/
+
+# Server lists for the dashboard import: they hold agent tokens
+*.local.json
+
+# What deploy/install.sh writes next to the compose file: never commit them (dashboard.env may hold the master key)
+deploy/.env
+deploy/dashboard.env

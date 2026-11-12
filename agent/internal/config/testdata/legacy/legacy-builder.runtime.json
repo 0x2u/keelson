@@ -1,0 +1,91 @@
+{
+  "dump_format": 1,
+  "apps": [
+    {
+      "name": "shop-build",
+      "project": "shop",
+      "effective_project": "shop",
+      "environment": "build",
+      "image": "keelson-local/shop",
+      "env_file": "",
+      "env": {},
+      "command": [],
+      "volumes": [],
+      "network": "",
+      "restart_policy": "unless-stopped",
+      "stop_timeout_seconds": 10,
+      "health_timeout_seconds": 90,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 5,
+      "soak_seconds": null,
+      "verify": [],
+      "keep_images": 3,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": false,
+        "domains": [],
+        "published_ports": [],
+        "proxy_container_port": 0,
+        "host_ports": [],
+        "host_port_env": "",
+        "health_path": ""
+      },
+      "release": null,
+      "build": {
+        "preset": "",
+        "dockerfile": "Dockerfile.keelson",
+        "install": "",
+        "build_command": "",
+        "start": "",
+        "output_dir": "",
+        "node": "",
+        "spa": null,
+        "standalone": false,
+        "context": ".",
+        "target": "",
+        "args": {
+          "NEXT_PUBLIC_ANALYTICS_HOST": "https://analytics.example.com",
+          "NEXT_PUBLIC_ANALYTICS_TOKEN": "<hidden>",
+          "NEXT_PUBLIC_APP_URL": "https://www.example.com",
+          "NEXT_PUBLIC_CAPTCHA_SITE_KEY": "<hidden>",
+          "NEXT_PUBLIC_ERROR_TRACKING_DSN": "REPLACE_ME",
+          "NEXT_PUBLIC_IMAGE_BASE_URL": "https://img.example.com",
+          "NEXT_PUBLIC_PAYMENT_CLIENT_ID": "REPLACE_ME",
+          "NEXT_PUBLIC_SITE_URL": "https://www.example.com"
+        },
+        "timeout_seconds": 1800,
+        "memory_bytes": 3221225472,
+        "cpus": 2,
+        "max_source_bytes": 536870912,
+        "network": "host",
+        "effective_network": "host",
+        "database": false,
+        "platform": "",
+        "builder_only": true,
+        "source_hosts": [
+          "api.github.com",
+          "codeload.github.com"
+        ]
+      },
+      "extra_networks": [],
+      "managed_databases": []
+    }
+  ],
+  "jobs": [],
+  "databases": [],
+  "previews": [],
+  "registries": [],
+  "proxy": null,
+  "notifications": null,
+  "managed_postgres": {
+    "version": 16,
+    "port": 5442,
+    "memory_bytes": 536870912,
+    "image": "postgres:16-alpine"
+  }
+}

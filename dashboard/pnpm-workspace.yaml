@@ -1,0 +1,7 @@
+# Dependencies allowed to run install scripts. pnpm blocks them by default;
+# unrs-resolver (an ESLint resolver) works from its prebuilt binaries without it.
+# ssh2 and cpu-features only compile optional native speed-ups: ssh2 falls back to pure JavaScript.
+allowBuilds:
+  unrs-resolver: false
+  ssh2: false
+  cpu-features: false

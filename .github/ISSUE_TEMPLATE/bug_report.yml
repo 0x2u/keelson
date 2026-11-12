@@ -1,0 +1,44 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include secrets, tokens or private hostnames. For vulnerabilities, use the Security tab instead.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: [Agent, Dashboard, Install script, MCP server, GitHub Action, Documentation, Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`keelson-agent version`, or the version shown in the dashboard."
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the relevant part of the configuration.
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Server OS and architecture, Docker version, how the dashboard is hosted.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: shell

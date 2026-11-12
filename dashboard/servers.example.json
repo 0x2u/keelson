@@ -1,0 +1,22 @@
+{
+  "servers": [
+    {
+      "name": "local",
+      "url": "http://127.0.0.1:7070",
+      "token": "replace-with-an-api-token-of-32-characters-or-more"
+    },
+    {
+      "name": "a-vps-that-has-no-agent-yet",
+      "ssh": { "host": "203.0.113.7", "port": 22, "user": "debian" }
+    },
+    {
+      "name": "a-vps-with-an-agent",
+      "url": "https://agent.example.com:7443",
+      "token": "replace-with-the-agents-api-token",
+      "deploy_secret": "optional: the deploy secret, to deploy and edit from the dashboard",
+      "ca_cert": "optional: -----BEGIN CERTIFICATE----- … (a private CA)",
+      "client_cert": "optional: for an agent that requires mutual TLS",
+      "client_key": "optional: -----BEGIN PRIVATE KEY----- …"
+    }
+  ]
+}

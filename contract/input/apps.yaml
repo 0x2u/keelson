@@ -1,0 +1,179 @@
+# The apps file that scripts/capture-contract.sh gives a real agent. It holds at least one of everything the dashboard
+# reads: the spellings of schema v1 for apps (ports, release steps of each kind, builds with presets, previews, a nested
+# database), jobs of each kind, databases with backups and one without, notifications, registries, proxy sites, build
+# limits. Nothing here is deployed except `worker`, by the capture itself; the Caddy admin address is one nobody listens
+# on, so the agent starts without a Caddy and says so.
+managed_postgres: {version: 17, port: 5443, memory: 1g}
+registries:
+  - {host: ghcr.io, username: bot, password_file: @WORK@/etc/ghcr-token}
+proxy:
+  admin: "http://127.0.0.1:@ADMIN_PORT@"
+  acme_email: ops@example.com
+  tls: internal
+  access_log: /var/log/caddy/access.log
+  trusted_proxies: [103.21.244.0/22, '2400:cb00::/32']
+  client_ip_header: CF-Connecting-IP
+  certificates:
+    - {cert_file: @WORK@/etc/origin.pem, key_file: @WORK@/etc/origin.key}
+  sites:
+    - hosts: [Static.Example.com]
+      root: /var/www/static
+      not_found: 404.html
+      immutable: ["/_next/static/*"]
+      headers: {X-Frame-Options: DENY}
+    - hosts: [old.example.com]
+      redirect: {to: "https://new.example.com{uri}", code: 301}
+    - hosts: [api.example.com]
+      upstream: "127.0.0.1:9000"
+notifications:
+  name: contract
+  events: [deployment.failed, job.failed, disk.high, job.missed]
+  webhooks:
+    - {url: "https://hooks.example.com/keelson", secret_file: @WORK@/etc/hook-secret}
+  telegram: {bot_token_file: @WORK@/etc/telegram-token, chat_id: "-100123"}
+  disk_alert_percent: 90
+  memory_alert_percent: 8
+  alert_cooldown: 0s
+apps:
+  # A blue/green app with a managed database, a backup release step, a host step and a container step with its own image.
+  - name: shop
+    project: shop
+    environment: production
+    image: ghcr.io/acme/shop
+    env: {NODE_ENV: production}
+    env_file: @WORK@/etc/shop.env
+    domains: [Shop.Example.com, www.shop.example.com]
+    port: 3000
+    health_path: /healthz
+    restart: unless-stopped
+    stop_timeout: 45s
+    health_timeout: 2m
+    stable_after: 20s
+    drain: 0s
+    soak: 45s
+    verify:
+      - {path: /}
+      - {path: /login, status: 302}
+    keep_images: 5
+    log: {driver: local, max_size: 50m, max_file: 5}
+    release:
+      on_rollback: true
+      steps:
+        - {name: backup, backup: shop}
+        - {name: migrate, container: {command: [node, migrate.js], image: ghcr.io/acme/shop-tools}, timeout: 5m}
+        # `run` is the legacy spelling of `host`: the agent reads it and reports a deprecation.
+        - {name: warm, run: [/srv/warm.sh], dir: /srv, continue_on_failure: true}
+    build:
+      dockerfile: Dockerfile.keelson
+      context: web
+      target: runtime
+      args: {NODE_ENV: production}
+      timeout: 20m
+      memory: 3g
+      cpus: 1.5
+      max_source: 1g
+      database: true
+      platform: linux/amd64
+      source_hosts: [github.example.com]
+    previews:
+      domain: "pr-{pr}-shop.example.com"
+      env_file: @WORK@/etc/shop-preview.env
+      env: {NODE_ENV: staging}
+      ttl: 72h
+      max: 5
+    database:
+      password_file: "@WORK@/data/postgres/roles/shop"
+      backups:
+        schedule: "0 3 * * *"
+        recipients: ["age1wn7dkjxred46y40slmr4jpdxm30958ehls6lmr58d6tv7xe05ggqyfu7qk"]
+        destinations: [{local: {dir: "@WORK@/backups"}}]
+  # A plain app with published ports, volumes and a command, no routing. The capture deploys it.
+  - name: worker
+    image: ghcr.io/acme/worker
+    command: [worker, --queue, default]
+    publish: ["127.0.0.1:9000:9000"]
+    volumes: ["/srv/worker:/data:ro"]
+    restart: always
+    stop_timeout: 5s
+  # A host-network app switched blue/green on two ports, with a variable of its own for the port.
+  - name: legacy
+    image: keelson-local/legacy
+    network: host
+    domains: [legacy.example.com]
+    port:
+      host: [4000, 4001]
+      env: LISTEN_PORT
+    restart: "no"
+  # Fixed published ports, so the old version stops before the new one starts.
+  - name: tools
+    image: ghcr.io/acme/tools
+    publish: ["127.0.0.1:9100:9100", "5353:5353/udp"]
+    network: keelson-net
+    deploy: {strategy: replace}
+    health_timeout: 30s
+  # One app of each preset of the build.
+  - name: web
+    project: web
+    image: ghcr.io/acme/web
+    port: 3000
+    domains: [web.example.com]
+    build: {preset: nextjs, standalone: true, args: {NEXT_PUBLIC_API_URL: "https://api.example.com"}}
+    source: {repo: acme/web, branch: main, deploy_on: workflow, workflow: deploy.yml, previews_workflow: previews.yml, build_on: [push, pull_request], build_server: builder}
+  - name: api
+    image: ghcr.io/acme/api
+    port: 3000
+    domains: [api-app.example.com]
+    build: {preset: node, start: node dist/server.js, node: "22"}
+  - name: docs
+    image: ghcr.io/acme/docs
+    port: 8080
+    domains: [docs.example.com]
+    build: {preset: static, output_dir: public, spa: false}
+  - name: site
+    image: ghcr.io/acme/site
+    port: 8080
+    domains: [site.example.com]
+    build: {preset: vite}
+jobs:
+  - {name: purge, schedule: "@daily", host: [/srv/purge.sh, --older-than, 30d], dir: /srv, timezone: Europe/Paris, timeout: 10m, alert_after: 3, realert_after: 0s}
+  - {name: warm-cache, schedule: "*/15 * * * *", container: {app: shop, command: [node, warm.js]}, paused: true}
+  - name: ping
+    schedule: "@every 10m"
+    http:
+      url: "https://shop.example.com/api/ping"
+      method: post
+      headers: {X-Source: keelson}
+      body: ping
+      bearer: {file: @WORK@/etc/ping-token}
+      expect_status: [200, 204]
+    realert_after: 12h
+databases:
+  # An existing PostgreSQL server, backed up to two places.
+  - name: ledger
+    host: db.internal
+    port: 5433
+    database: ledger
+    user: app
+    password_file: @WORK@/etc/db-ledger
+    ssl_mode: require
+    version: 16
+    network: keelson-net
+    backups:
+      schedule: "30 3 * * *"
+      timezone: Europe/Paris
+      recipients: ["age1wn7dkjxred46y40slmr4jpdxm30958ehls6lmr58d6tv7xe05ggqyfu7qk"]
+      keep: 30
+      keep_days: 90
+      keep_pre_deploy: 2
+      timeout: 1h
+      alert_after: 2
+      destinations:
+        - local: {dir: "@WORK@/backups"}
+        - s3: {endpoint: "https://s3.eu-west-3.amazonaws.com", region: eu-west-3, bucket: acme-backups, prefix: ledger, access_key_id: AKIAEXAMPLE, secret_key_file: @WORK@/etc/s3-secret}
+  # An existing server nothing backs up.
+  - name: native
+    host: db2.internal
+    database: native
+    user: app
+    password_file: @WORK@/etc/db-native
+build_limits: {memory: 4g, cpus: 4, timeout: 30m, max_source: 512m, host_network: true}

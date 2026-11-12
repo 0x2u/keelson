@@ -1,0 +1,24 @@
+[
+  {
+    "command": "worker --queue default",
+    "created": 1767225600,
+    "id": "<hash>",
+    "image": "ghcr.io/acme/worker:latest",
+    "image_id": "sha256:c140a52a7171a3601b752ff5decefc45f720293959d915464a54b937a672b79c",
+    "labels": {
+      "keelson.app": "worker",
+      "keelson.deployment": "<id>"
+    },
+    "name": "worker",
+    "ports": [
+      {
+        "ip": "127.0.0.1",
+        "private_port": 9000,
+        "public_port": 9000,
+        "type": "tcp"
+      }
+    ],
+    "state": "running",
+    "status": "Up 1 second"
+  }
+]

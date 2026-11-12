@@ -1,0 +1,103 @@
+{
+  "config": "{\n  \"apps\": {\n    \"http\": {\n      \"servers\": {\n        \"keelson\": {\n          \"client_ip_headers\": [\n            \"CF-Connecting-IP\"\n          ],\n          \"errors\": {\n            \"routes\": [\n              {\n                \"handle\": [\n                  {\n                    \"handler\": \"headers\",\n                    \"response\": {\n                      \"set\": {\n                        \"X-Frame-Options\": [\n                          \"DENY\"\n                        ]\n                      }\n                    }\n                  },\n                  {\n                    \"handler\": \"rewrite\",\n                    \"uri\": \"/404.html\"\n                  },\n                  {\n                    \"handler\": \"file_server\",\n                    \"index_names\": [\n                      \"index.html\"\n                    ],\n                    \"root\": \"/var/www/static\"\n                  }\n                ],\n                \"match\": [\n                  {\n                    \"expression\": \"{http.error.status_code} == 404\",\n                    \"host\": [\n                      \"static.example.com\"\n                    ]\n                  }\n                ],\n                \"terminal\": true\n              }\n            ]\n          },\n          \"listen\": [\n            \":443\"\n          ],\n          \"logs\": {\n            \"default_logger_name\": \"access\"\n          },\n          \"routes\": [\n            {\n              \"handle\": [\n                {\n                  \"handler\": \"reverse_proxy\",\n                  \"headers\": {\n                    \"request\": {\n                      \"set\": {\n                        \"X-Forwarded-For\": [\n                          \"{http.vars.client_ip}\"\n                        ]\n                      }\n                    }\n                  },\n                  \"upstreams\": [\n                    {\n                      \"dial\": \"127.0.0.1:9000\"\n                    }\n                  ]\n                }\n              ],\n              \"match\": [\n                {\n                  \"host\": [\n                    \"api.example.com\"\n                  ]\n                }\n              ],\n              \"terminal\": true\n            },\n            {\n              \"handle\": [\n                {\n                  \"handler\": \"reverse_proxy\",\n                  \"headers\": {\n                    \"request\": {\n                      \"set\": {\n                        \"X-Forwarded-For\": [\n                          \"{http.vars.client_ip}\"\n                        ]\n                      }\n                    }\n                  },\n                  \"upstreams\": [\n                    {\n                      \"dial\": \"127.0.0.1:4000\"\n                    }\n                  ]\n                }\n              ],\n              \"match\": [\n                {\n                  \"host\": [\n                    \"legacy.example.com\"\n                  ]\n                }\n              ],\n              \"terminal\": true\n            },\n            {\n              \"handle\": [\n                {\n                  \"handler\": \"static_response\",\n                  \"headers\": {\n                    \"Location\": [\n                      \"https://new.example.com{http.request.uri}\"\n                    ]\n                  },\n                  \"status_code\": 301\n                }\n              ],\n              \"match\": [\n                {\n                  \"host\": [\n                    \"old.example.com\"\n                  ]\n                }\n              ],\n              \"terminal\": true\n            },\n            {\n              \"handle\": [\n                {\n                  \"handler\": \"subroute\",\n                  \"routes\": [\n                    {\n                      \"handle\": [\n                        {\n                          \"handler\": \"headers\",\n                          \"response\": {\n                            \"set\": {\n                              \"X-Frame-Options\": [\n                                \"DENY\"\n                              ]\n                            }\n                          }\n                        }\n                      ]\n                    },\n                    {\n                      \"handle\": [\n                        {\n                          \"handler\": \"headers\",\n                          \"response\": {\n                            \"set\": {\n                              \"Cache-Control\": [\n                                \"public, max-age=31536000, immutable\"\n                              ]\n                            }\n                          }\n                        }\n                      ],\n                      \"match\": [\n                        {\n                          \"path\": [\n                            \"/_next/static/*\"\n                          ]\n                        }\n                      ]\n                    },\n                    {\n                      \"handle\": [\n                        {\n                          \"handler\": \"rewrite\",\n                          \"uri\": \"{http.matchers.file.relative}\"\n                        }\n                      ],\n                      \"match\": [\n                        {\n                          \"file\": {\n                            \"root\": \"/var/www/static\",\n                            \"try_files\": [\n                              \"{http.request.uri.path}\",\n                              \"{http.request.uri.path}.html\",\n                              \"{http.request.uri.path}/\"\n                            ],\n                            \"try_policy\": \"first_exist\"\n                          }\n                        }\n                      ]\n                    },\n                    {\n                      \"handle\": [\n                        {\n                          \"handler\": \"file_server\",\n                          \"index_names\": [\n                            \"index.html\"\n                          ],\n                          \"root\": \"/var/www/static\"\n                        }\n                      ]\n                    }\n                  ]\n                }\n              ],\n              \"match\": [\n                {\n                  \"host\": [\n                    \"static.example.com\"\n                  ]\n                }\n              ],\n              \"terminal\": true\n            }\n          ],\n          \"trusted_proxies\": {\n            \"ranges\": [\n              \"103.21.244.0/22\",\n              \"2400:cb00::/32\"\n            ],\n            \"source\": \"static\"\n          }\n        }\n      }\n    },\n    \"tls\": {\n      \"automation\": {\n        \"policies\": [\n          {\n            \"issuers\": [\n              {\n                \"module\": \"internal\"\n              }\n            ]\n          }\n        ]\n      },\n      \"certificates\": {\n        \"load_files\": [\n          {\n            \"certificate\": \"/work/etc/origin.pem\",\n            \"key\": \"/work/etc/origin.key\"\n          }\n        ]\n      }\n    }\n  },\n  \"logging\": {\n    \"logs\": {\n      \"access\": {\n        \"encoder\": {\n          \"format\": \"json\"\n        },\n        \"include\": [\n          \"http.log.access.access\"\n        ],\n        \"writer\": {\n          \"filename\": \"/var/log/caddy/access.log\",\n          \"output\": \"file\"\n        }\n      },\n      \"default\": {\n        \"exclude\": [\n          \"http.log.access.access\"\n        ]\n      }\n    }\n  }\n}",
+  "generated": "[\n  {\n    \"handle\": [\n      {\n        \"handler\": \"reverse_proxy\",\n        \"headers\": {\n          \"request\": {\n            \"set\": {\n              \"X-Forwarded-For\": [\n                \"{http.vars.client_ip}\"\n              ]\n            }\n          }\n        },\n        \"upstreams\": [\n          {\n            \"dial\": \"127.0.0.1:9000\"\n          }\n        ]\n      }\n    ],\n    \"match\": [\n      {\n        \"host\": [\n          \"api.example.com\"\n        ]\n      }\n    ],\n    \"terminal\": true\n  },\n  {\n    \"handle\": [\n      {\n        \"handler\": \"reverse_proxy\",\n        \"headers\": {\n          \"request\": {\n            \"set\": {\n              \"X-Forwarded-For\": [\n                \"{http.vars.client_ip}\"\n              ]\n            }\n          }\n        },\n        \"upstreams\": [\n          {\n            \"dial\": \"127.0.0.1:4000\"\n          }\n        ]\n      }\n    ],\n    \"match\": [\n      {\n        \"host\": [\n          \"legacy.example.com\"\n        ]\n      }\n    ],\n    \"terminal\": true\n  },\n  {\n    \"handle\": [\n      {\n        \"handler\": \"static_response\",\n        \"headers\": {\n          \"Location\": [\n            \"https://new.example.com{http.request.uri}\"\n          ]\n        },\n        \"status_code\": 301\n      }\n    ],\n    \"match\": [\n      {\n        \"host\": [\n          \"old.example.com\"\n        ]\n      }\n    ],\n    \"terminal\": true\n  },\n  {\n    \"handle\": [\n      {\n        \"handler\": \"subroute\",\n        \"routes\": [\n          {\n            \"handle\": [\n              {\n                \"handler\": \"headers\",\n                \"response\": {\n                  \"set\": {\n                    \"X-Frame-Options\": [\n                      \"DENY\"\n                    ]\n                  }\n                }\n              }\n            ]\n          },\n          {\n            \"handle\": [\n              {\n                \"handler\": \"headers\",\n                \"response\": {\n                  \"set\": {\n                    \"Cache-Control\": [\n                      \"public, max-age=31536000, immutable\"\n                    ]\n                  }\n                }\n              }\n            ],\n            \"match\": [\n              {\n                \"path\": [\n                  \"/_next/static/*\"\n                ]\n              }\n            ]\n          },\n          {\n            \"handle\": [\n              {\n                \"handler\": \"rewrite\",\n                \"uri\": \"{http.matchers.file.relative}\"\n              }\n            ],\n            \"match\": [\n              {\n                \"file\": {\n                  \"root\": \"/var/www/static\",\n                  \"try_files\": [\n                    \"{http.request.uri.path}\",\n                    \"{http.request.uri.path}.html\",\n                    \"{http.request.uri.path}/\"\n                  ],\n                  \"try_policy\": \"first_exist\"\n                }\n              }\n            ]\n          },\n          {\n            \"handle\": [\n              {\n                \"handler\": \"file_server\",\n                \"index_names\": [\n                  \"index.html\"\n                ],\n                \"root\": \"/var/www/static\"\n              }\n            ]\n          }\n        ]\n      }\n    ],\n    \"match\": [\n      {\n        \"host\": [\n          \"static.example.com\"\n        ]\n      }\n    ],\n    \"terminal\": true\n  }\n]",
+  "live_error": "caddy admin API: Get \"http://127.0.0.1:2019/config/apps/http/servers/keelson\": dial tcp 127.0.0.1:2019: connect: connection refused",
+  "routes": [
+    {
+      "app": "",
+      "container": "",
+      "domains": [
+        "api.example.com"
+      ],
+      "kind": "site",
+      "ref": "",
+      "running": false,
+      "site_kind": "upstream",
+      "target": "127.0.0.1:9000",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "upstream": "127.0.0.1:9000"
+    },
+    {
+      "app": "",
+      "container": "",
+      "domains": [
+        "old.example.com"
+      ],
+      "kind": "site",
+      "ref": "",
+      "running": false,
+      "site_kind": "redirect",
+      "target": "301 https://new.example.com{uri}",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "upstream": ""
+    },
+    {
+      "app": "",
+      "container": "",
+      "domains": [
+        "static.example.com"
+      ],
+      "kind": "site",
+      "ref": "",
+      "running": false,
+      "site_kind": "static",
+      "target": "/var/www/static",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "upstream": ""
+    }
+  ],
+  "type": "caddy",
+  "unrouted": [
+    {
+      "app": "shop",
+      "domains": [
+        "shop.example.com",
+        "www.shop.example.com"
+      ],
+      "reason": "never deployed"
+    },
+    {
+      "app": "legacy",
+      "domains": [
+        "legacy.example.com"
+      ],
+      "reason": "never deployed"
+    },
+    {
+      "app": "web",
+      "domains": [
+        "web.example.com"
+      ],
+      "reason": "never deployed"
+    },
+    {
+      "app": "api",
+      "domains": [
+        "api-app.example.com"
+      ],
+      "reason": "never deployed"
+    },
+    {
+      "app": "docs",
+      "domains": [
+        "docs.example.com"
+      ],
+      "reason": "never deployed"
+    },
+    {
+      "app": "site",
+      "domains": [
+        "site.example.com"
+      ],
+      "reason": "never deployed"
+    },
+    {
+      "app": "blog",
+      "domains": [
+        "blog.example.com"
+      ],
+      "reason": "never deployed"
+    }
+  ],
+  "where": "http://127.0.0.1:2019"
+}

@@ -1,0 +1,18 @@
+# A plain Node.js server Keelson builds on this server WITHOUT a Dockerfile in the repository (docs/reference/builds.md, "Build presets: no Dockerfile in the repository").
+# The image installs the dependencies from the lockfile, runs the "build" script if package.json has one, and starts the
+# app as a non-root user. It must listen on the port below (read it from the PORT environment variable).
+proxy:
+  acme_email: ops@example.com
+
+apps:
+  - name: api
+    image: ghcr.io/acme/api
+    port: 3000                        # the image sets PORT=3000 and HOSTNAME=0.0.0.0
+    health_path: /healthz             # the image's HEALTHCHECK requests it (default /)
+    domains: [api.example.com]
+    build:
+      preset: node
+      # install: npm ci                          # default by lockfile
+      # build_command: npm run build             # default: <package manager> run build, only if package.json has a "build" script
+      start: node dist/server.js                 # default: <package manager> start
+      node: "22"

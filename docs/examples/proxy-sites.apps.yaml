@@ -1,0 +1,80 @@
+# Static sites, redirects and a service behind the agent's Caddy instead of nginx (docs/reference/proxy.md, "Sites: static files, fixed
+# upstreams and redirects").
+#
+# Caddy runs as a container on the host network, with certificates on a volume and the static roots read-only at the
+# same paths used below:
+#
+#   docker run -d --name caddy --restart unless-stopped --network host \
+#     -v caddy_data:/data -v caddy_config:/config \
+#     -v /var/www/example:/var/www/example:ro -v /var/www/docs:/var/www/docs:ro \
+#     caddy:2-alpine
+#
+# Every host is behind the Cloudflare proxy: certificates come from ACME (HTTP-01), and the trusted ranges below make
+# Caddy, and the upstream, see the visitor's address from CF-Connecting-IP.
+proxy:
+  acme_email: ops@example.com
+
+  # https://www.cloudflare.com/ips/ : keep in sync with the list when Cloudflare changes it.
+  client_ip_header: CF-Connecting-IP
+  trusted_proxies:
+    - 173.245.48.0/20
+    - 103.21.244.0/22
+    - 103.22.200.0/22
+    - 103.31.4.0/22
+    - 141.101.64.0/18
+    - 108.162.192.0/18
+    - 190.93.240.0/20
+    - 188.114.96.0/20
+    - 197.234.240.0/22
+    - 198.41.128.0/17
+    - 162.158.0.0/15
+    - 104.16.0.0/13
+    - 104.24.0.0/14
+    - 172.64.0.0/13
+    - 131.0.72.0/22
+    - 2400:cb00::/32
+    - 2606:4700::/32
+    - 2803:f800::/32
+    - 2405:b500::/32
+    - 2405:8100::/32
+    - 2a06:98c0::/29
+    - 2c0f:f248::/32
+
+  sites:
+    # example.com: a static Next.js export.
+    - hosts: [www.example.com]
+      root: /var/www/example
+      not_found: 404.html
+      headers:
+        X-Content-Type-Options: nosniff
+        X-Frame-Options: DENY
+        Referrer-Policy: strict-origin-when-cross-origin
+      immutable:               # hashed build output and assets that never change under the same name
+        - /_next/static/*
+        - "*.ico"
+        - "*.png"
+        - "*.jpg"
+        - "*.svg"
+        - "*.webp"
+        - "*.woff2"
+    - hosts: [example.com]
+      redirect: {to: "https://www.example.com{uri}", code: 301}
+
+    # example.org: static, with www redirecting to the bare domain.
+    - hosts: [example.org]
+      root: /var/www/docs
+      not_found: 404.html
+      headers:
+        X-Content-Type-Options: nosniff
+        X-Frame-Options: DENY
+        Referrer-Policy: strict-origin-when-cross-origin
+      immutable: [/_next/static/*, "*.woff2"]
+    - hosts: [www.example.org]
+      redirect: {to: "https://example.org{uri}", code: 301}
+
+    # The Keelson dashboard, run as a container published on loopback (-p 127.0.0.1:3100:3000).
+    - hosts: [keelson.example.com]
+      upstream: 127.0.0.1:3100
+
+# Sites need no app. Apps with domains share the same Caddy (and the same trusted proxies):
+apps: []

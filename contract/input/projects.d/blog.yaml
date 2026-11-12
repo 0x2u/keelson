@@ -1,0 +1,21 @@
+# The project file of the capture: an app, its managed database, a job and a preview template, all of the project "blog".
+# It is the one file that still has the legacy spelling (a top-level `previews`, `run` for a host job), so that the agent reports
+# deprecations for it and the dashboard's handling of them is pinned to what the agent says.
+apps:
+  - name: blog
+    image: ghcr.io/acme/blog
+    environment: staging
+    domains: [blog.example.com]
+    port: 2368
+    soak: 0s
+    database:
+      password_file: "@WORK@/data/postgres/roles/blog"
+previews:
+  - app: blog
+    domain: "pr-{pr}-blog.example.com"
+    env: {NODE_ENV: staging}
+    ttl: 24h
+    max: 3
+jobs:
+  - {name: blog-reindex, schedule: "@hourly", container: {app: blog, command: [reindex]}}
+  - {name: blog-prune, schedule: "@weekly", run: [/srv/prune.sh]}

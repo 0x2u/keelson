@@ -1,0 +1,74 @@
+[
+  {
+    "kind": "host",
+    "name": "purge",
+    "next_run": "2026-01-01T00:00:00Z",
+    "paused": false,
+    "running": false,
+    "schedule": "@daily",
+    "target": "/srv/purge.sh",
+    "timezone": "Europe/Paris"
+  },
+  {
+    "kind": "container",
+    "name": "warm-cache",
+    "paused": true,
+    "running": false,
+    "schedule": "*/15 * * * *",
+    "target": "container of shop",
+    "timezone": "UTC"
+  },
+  {
+    "kind": "http",
+    "name": "ping",
+    "next_run": "2026-01-01T00:00:00Z",
+    "paused": false,
+    "running": false,
+    "schedule": "@every 10m",
+    "target": "POST https://shop.example.com/api/ping",
+    "timezone": "UTC"
+  },
+  {
+    "kind": "container",
+    "name": "blog-reindex",
+    "next_run": "2026-01-01T00:00:00Z",
+    "paused": false,
+    "project": "blog",
+    "running": false,
+    "schedule": "@hourly",
+    "target": "container of blog",
+    "timezone": "UTC"
+  },
+  {
+    "kind": "host",
+    "name": "blog-prune",
+    "next_run": "2026-01-01T00:00:00Z",
+    "paused": false,
+    "project": "blog",
+    "running": false,
+    "schedule": "@weekly",
+    "target": "/srv/prune.sh",
+    "timezone": "UTC"
+  },
+  {
+    "kind": "backup",
+    "name": "backup-ledger",
+    "next_run": "2026-01-01T00:00:00Z",
+    "paused": false,
+    "running": false,
+    "schedule": "30 3 * * *",
+    "target": "backup of database ledger",
+    "timezone": "Europe/Paris"
+  },
+  {
+    "kind": "backup",
+    "name": "backup-shop",
+    "next_run": "2026-01-01T00:00:00Z",
+    "paused": false,
+    "project": "shop",
+    "running": false,
+    "schedule": "0 3 * * *",
+    "target": "backup of database shop",
+    "timezone": "UTC"
+  }
+]

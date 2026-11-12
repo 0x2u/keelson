@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/0x2u/keelson/blob/main/docs/README.md
+    about: Hosting, configuration reference and troubleshooting.
+  - name: Report a security vulnerability
+    url: https://github.com/0x2u/keelson/security/advisories/new
+    about: Please report vulnerabilities privately, not as an issue.

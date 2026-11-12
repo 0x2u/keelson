@@ -1,0 +1,126 @@
+# Alert rules for the metrics of keelson-agent (GET /metrics). Load them with `rule_files:` in prometheus.yml; they are
+# checked by `promtool check rules` and exercised by keelson.rules.test.yml, in CI.
+#
+# The thresholds are a starting point: the backup ages assume a daily schedule, so change them to your schedule.
+groups:
+  - name: keelson-agent
+    rules:
+      - alert: KeelsonAgentDown
+        expr: up{job="keelson-agent"} == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "The agent on {{ $labels.instance }} does not answer its scrape"
+          description: "Nothing is known about this server's apps, jobs and backups until it answers again. An agent that connects out is scraped from the server itself."
+
+      - alert: KeelsonDockerEngineDown
+        expr: keelson_engine_up == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "The Docker engine on {{ $labels.instance }} does not answer"
+
+      - alert: KeelsonCollectorFailing
+        expr: keelson_collector_success == 0
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "The agent on {{ $labels.instance }} cannot read its {{ $labels.collector }}"
+          description: "Series of that part are missing from the scrape: an alert on them cannot fire."
+
+      - alert: KeelsonDiskAlmostFull
+        expr: keelson_host_disk_bytes{kind="free"} / keelson_host_disk_bytes{kind="total"} < 0.10
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "Less than 10% free on {{ $labels.path }} of {{ $labels.instance }}"
+          description: "A full disk stops deployments and makes the agent refuse signed requests."
+
+  - name: keelson-apps
+    rules:
+      - alert: KeelsonAppDown
+        expr: keelson_app_up == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.app }} is not running on {{ $labels.instance }}"
+          description: "Its container is stopped, restarting in a loop or reported unhealthy."
+
+      - alert: KeelsonAppRestarting
+        expr: increase(keelson_app_container_restarts[15m]) >= 3
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.app }} restarted {{ $value | printf \"%.0f\" }} times in 15 minutes"
+
+      - alert: KeelsonAppOOMKilled
+        expr: keelson_app_oom_killed == 1
+        labels: {severity: warning}
+        annotations:
+          summary: "The engine killed {{ $labels.app }} for running out of memory"
+
+      - alert: KeelsonLastDeploymentFailed
+        expr: keelson_app_last_deployment_success == 0 and keelson_app_deploying == 0
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "The last deployment of {{ $labels.app }} did not succeed"
+          description: "It failed or was rolled back: the previous version serves, if the app is up. The alert ends with the next successful deployment."
+
+  - name: keelson-jobs
+    rules:
+      - alert: KeelsonJobFailing
+        expr: keelson_job_last_run_success == 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "The job {{ $labels.job }} failed its last run on {{ $labels.instance }}"
+
+      - alert: KeelsonJobOverdue
+        # next_run is absent while a job is paused, so a paused job never fires this.
+        expr: time() - keelson_job_next_run_timestamp_seconds > 600
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "The job {{ $labels.job }} did not run when it was due"
+          description: "Its next run is in the past: the scheduler is stuck or the agent was stopped."
+
+  - name: keelson-backups
+    rules:
+      - alert: KeelsonBackupFailing
+        expr: keelson_backup_last_run_success == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "The last backup of {{ $labels.database }} failed on {{ $labels.instance }}"
+
+      - alert: KeelsonBackupTooOld
+        # Daily backups: a day and a half without a success.
+        expr: time() - keelson_backup_last_success_timestamp_seconds > 36 * 3600
+        for: 10m
+        labels: {severity: critical}
+        annotations:
+          summary: "No successful backup of {{ $labels.database }} for {{ $value | humanizeDuration }}"
+
+      - alert: KeelsonBackupNeverSucceeded
+        expr: keelson_backup_scheduled == 1 unless on(instance, database) keelson_backup_last_success_timestamp_seconds
+        for: 1h
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.database }} has a backup schedule and no successful backup on record"
+
+      - alert: KeelsonRestoreNeverTested
+        # A backup nobody restored is a hope. The proof is a restore into a scratch database, from the dashboard.
+        expr: >
+          keelson_backup_scheduled == 1
+          unless on(instance, database)
+          label_replace(keelson_proof_timestamp_seconds{kind="restore"}, "database", "$1", "subject", "(.+)")
+        for: 1d
+        labels: {severity: warning}
+        annotations:
+          summary: "No restore of {{ $labels.database }} has ever been tested"
+
+      - alert: KeelsonRestoreProofOld
+        expr: time() - keelson_proof_timestamp_seconds{kind="restore"} > 30 * 86400
+        labels: {severity: warning}
+        annotations:
+          summary: "The last tested restore of {{ $labels.subject }} is {{ $value | humanizeDuration }} old"

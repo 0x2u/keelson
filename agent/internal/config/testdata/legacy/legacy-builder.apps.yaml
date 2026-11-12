@@ -1,0 +1,31 @@
+# shop, PRODUCTION, built on another server: the apps file of the BUILD server.
+# The server that runs the site keeps `shop-production.apps.yaml` without its `build:` block and with
+# `image: keelson-local/shop`.
+#
+# This agent builds the image; the dashboard downloads it from here and sends it to the server that runs the site, which
+# deploys it behind its own release steps (check-env, backup, migrate) and its own health gate. Nothing runs here.
+apps:
+  - name: shop-build
+    project: shop
+    environment: build
+    image: keelson-local/shop     # the same repository as the app that runs it, on the other server
+    keep_images: 3
+    build:
+      only: true
+      dockerfile: Dockerfile.keelson
+      network: host                       # `next build` reads the database through the tunnel on 127.0.0.1:5433 (read-only role)
+      memory: 3g                          # measured: a next build peaks at 2.67 GiB
+      cpus: 2
+      timeout: 30m
+      # The same public values as the production example: inlined in the visitors' JavaScript at build time.
+      args:
+        NEXT_PUBLIC_SITE_URL: https://www.example.com
+        NEXT_PUBLIC_APP_URL: https://www.example.com
+        NEXT_PUBLIC_IMAGE_BASE_URL: https://img.example.com
+        NEXT_PUBLIC_ANALYTICS_HOST: https://analytics.example.com
+        NEXT_PUBLIC_ANALYTICS_TOKEN: REPLACE_ME
+        NEXT_PUBLIC_PAYMENT_CLIENT_ID: REPLACE_ME
+        NEXT_PUBLIC_CAPTCHA_SITE_KEY: REPLACE_ME
+        NEXT_PUBLIC_ERROR_TRACKING_DSN: REPLACE_ME
+      # DATABASE_URL (postgresql://shop_build:<password>@127.0.0.1:5433/shop) and ERROR_TRACKING_AUTH_TOKEN are stored
+      # variables flagged "build" on THIS agent (the dashboard's Variables page of this app), never in `args`.

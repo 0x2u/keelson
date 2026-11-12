@@ -1,0 +1,35 @@
+# A production app with per-pull-request previews (docs/reference/previews.md).
+#
+# CI builds ghcr.io/acme/shop:<commit sha> for every pull request run; the dashboard's webhook then asks this agent to deploy it as
+# shop-pr-<n> at https://pr-<n>-shop.example.com, and to remove it when the pull request is closed. The DNS record (or a
+# wildcard *.example.com) must already point at this server: Caddy obtains the certificate when the first instance appears.
+registries:
+  - host: ghcr.io
+    username: me
+    password_file: /etc/keelson/ghcr-token
+
+proxy:
+  acme_email: ops@example.com
+
+apps:
+  - name: shop
+    project: shop
+    environment: production
+    image: ghcr.io/acme/shop
+    env_file: /etc/keelson/shop.env        # production secrets: previews never read this file
+    volumes: ["/srv/shop/uploads:/app/uploads"]   # nor mount these
+    port: 3000
+    health_path: /healthz
+    domains: [shop.example.com]
+    release:
+      steps:
+        - {name: migrate, command: [node, migrate.js]}   # previews run no release steps
+
+previews:
+  - app: shop
+    domain: pr-{pr}-shop.example.com       # {pr} stands for the pull request number, in one label
+    env_file: /etc/keelson/shop-preview.env   # the previews' own, with throwaway credentials
+    env:
+      NODE_ENV: production
+    ttl: 72h                               # removed this long after the last deployment
+    max: 5                                 # one more pull request removes a failed preview first, else the least recently deployed

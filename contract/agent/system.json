@@ -1,0 +1,52 @@
+{
+  "arch": "amd64",
+  "build": {
+    "enabled": true,
+    "limits": {
+      "cpus": 4,
+      "host_network": true,
+      "keep_images": 3,
+      "max_source": 536870912,
+      "memory": 4294967296,
+      "source_hosts": [
+        "api.github.com",
+        "codeload.github.com"
+      ],
+      "timeout_seconds": 1800
+    }
+  },
+  "engine": {
+    "containers": 1,
+    "cpus": 4,
+    "images": 3,
+    "mem_total": 8589934592,
+    "name": "contract-engine",
+    "os": "Contract Linux",
+    "root_dir": "/var/lib/docker",
+    "running": 1,
+    "version": "28.0.0"
+  },
+  "host": {
+    "cpus": 4,
+    "disk": {
+      "free": 40000000000,
+      "path": "/",
+      "total": 100000000000
+    },
+    "hostname": "host",
+    "load": {
+      "fifteen": 0.3,
+      "five": 0.2,
+      "one": 0.1
+    },
+    "memory": {
+      "available": 4294967296,
+      "swap_free": 1073741824,
+      "swap_total": 1073741824,
+      "total": 8589934592
+    },
+    "uptime_seconds": 3600
+  },
+  "os": "linux",
+  "time": "2026-01-01T00:00:00Z"
+}

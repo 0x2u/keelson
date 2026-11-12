@@ -1,0 +1,774 @@
+{
+  "dump_format": 1,
+  "apps": [
+    {
+      "name": "blog",
+      "project": "blog",
+      "effective_project": "blog",
+      "environment": "staging",
+      "image": "ghcr.io/acme/blog",
+      "env_file": "",
+      "env": {},
+      "command": [],
+      "volumes": [],
+      "network": "",
+      "restart_policy": "unless-stopped",
+      "stop_timeout_seconds": 10,
+      "health_timeout_seconds": 90,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 5,
+      "soak_seconds": 0,
+      "verify": [],
+      "keep_images": 3,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": true,
+        "domains": [
+          "blog.example.com"
+        ],
+        "published_ports": [],
+        "proxy_container_port": 2368,
+        "host_ports": [],
+        "host_port_env": "",
+        "health_path": ""
+      },
+      "release": null,
+      "build": null,
+      "extra_networks": [
+        "keelson"
+      ],
+      "managed_databases": [
+        {
+          "name": "blog",
+          "env_key": "DATABASE_URL"
+        }
+      ]
+    },
+    {
+      "name": "legacy",
+      "project": "",
+      "effective_project": "legacy",
+      "environment": "",
+      "image": "keelson-local/legacy",
+      "env_file": "",
+      "env": {},
+      "command": [],
+      "volumes": [],
+      "network": "host",
+      "restart_policy": "no",
+      "stop_timeout_seconds": 10,
+      "health_timeout_seconds": 90,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 5,
+      "soak_seconds": 30,
+      "verify": [],
+      "keep_images": 3,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": true,
+        "domains": [
+          "legacy.example.com"
+        ],
+        "published_ports": [],
+        "proxy_container_port": 0,
+        "host_ports": [
+          4000,
+          4001
+        ],
+        "host_port_env": "LISTEN_PORT",
+        "health_path": ""
+      },
+      "release": null,
+      "build": null,
+      "extra_networks": [],
+      "managed_databases": []
+    },
+    {
+      "name": "legacy-build",
+      "project": "",
+      "effective_project": "legacy-build",
+      "environment": "build",
+      "image": "keelson-local/legacy",
+      "env_file": "",
+      "env": {},
+      "command": [],
+      "volumes": [],
+      "network": "",
+      "restart_policy": "unless-stopped",
+      "stop_timeout_seconds": 10,
+      "health_timeout_seconds": 90,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 5,
+      "soak_seconds": null,
+      "verify": [],
+      "keep_images": 3,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": false,
+        "domains": [],
+        "published_ports": [],
+        "proxy_container_port": 0,
+        "host_ports": [],
+        "host_port_env": "",
+        "health_path": ""
+      },
+      "release": null,
+      "build": {
+        "preset": "",
+        "dockerfile": "Dockerfile",
+        "install": "",
+        "build_command": "",
+        "start": "",
+        "output_dir": "",
+        "node": "",
+        "spa": null,
+        "standalone": false,
+        "context": ".",
+        "target": "",
+        "args": {},
+        "timeout_seconds": 1800,
+        "memory_bytes": 4294967296,
+        "cpus": 4,
+        "max_source_bytes": 536870912,
+        "network": "host",
+        "effective_network": "host",
+        "database": false,
+        "platform": "",
+        "builder_only": true,
+        "source_hosts": [
+          "api.github.com",
+          "codeload.github.com"
+        ]
+      },
+      "extra_networks": [],
+      "managed_databases": []
+    },
+    {
+      "name": "shop",
+      "project": "",
+      "effective_project": "shop",
+      "environment": "",
+      "image": "ghcr.io/acme/shop",
+      "env_file": "",
+      "env": {
+        "NODE_ENV": "<hidden>",
+        "SESSION_SECRET": "<hidden>"
+      },
+      "command": [],
+      "volumes": [],
+      "network": "",
+      "restart_policy": "unless-stopped",
+      "stop_timeout_seconds": 45,
+      "health_timeout_seconds": 120,
+      "stable_after_seconds": 20,
+      "stable_after_explicit": true,
+      "drain_seconds": 0,
+      "soak_seconds": 45,
+      "verify": [
+        {
+          "path": "/",
+          "status": 0
+        },
+        {
+          "path": "/login",
+          "status": 302
+        }
+      ],
+      "keep_images": 5,
+      "log": {
+        "driver": "local",
+        "max_size_bytes": 52428800,
+        "max_file": 5
+      },
+      "routing": {
+        "proxied": true,
+        "domains": [
+          "shop.example.com",
+          "www.shop.example.com"
+        ],
+        "published_ports": [],
+        "proxy_container_port": 3000,
+        "host_ports": [],
+        "host_port_env": "",
+        "health_path": "/healthz"
+      },
+      "release": {
+        "on_rollback": true,
+        "steps": [
+          {
+            "name": "backup",
+            "kind": "backup",
+            "argv": [],
+            "dir": "",
+            "image": "",
+            "database": "shop",
+            "timeout_seconds": 600,
+            "continue_on_failure": false
+          },
+          {
+            "name": "migrate",
+            "kind": "container",
+            "argv": [
+              "node",
+              "migrate.js",
+              "--token",
+              "<hidden>"
+            ],
+            "dir": "",
+            "image": "ghcr.io/acme/shop-tools",
+            "database": "",
+            "timeout_seconds": 300,
+            "continue_on_failure": false
+          },
+          {
+            "name": "warm",
+            "kind": "host",
+            "argv": [
+              "/srv/warm.sh",
+              "API_KEY=<hidden>"
+            ],
+            "dir": "/srv",
+            "image": "",
+            "database": "",
+            "timeout_seconds": 600,
+            "continue_on_failure": true
+          }
+        ]
+      },
+      "build": {
+        "preset": "",
+        "dockerfile": "Dockerfile.keelson",
+        "install": "",
+        "build_command": "",
+        "start": "",
+        "output_dir": "",
+        "node": "",
+        "spa": null,
+        "standalone": false,
+        "context": "web",
+        "target": "runtime",
+        "args": {
+          "NODE_ENV": "production",
+          "NPM_TOKEN": "<hidden>"
+        },
+        "timeout_seconds": 1200,
+        "memory_bytes": 3221225472,
+        "cpus": 1.5,
+        "max_source_bytes": 1073741824,
+        "network": "",
+        "effective_network": "keelson",
+        "database": true,
+        "platform": "linux/amd64",
+        "builder_only": false,
+        "source_hosts": [
+          "github.example.com"
+        ]
+      },
+      "extra_networks": [
+        "keelson"
+      ],
+      "managed_databases": [
+        {
+          "name": "shop",
+          "env_key": "DATABASE_URL"
+        }
+      ]
+    },
+    {
+      "name": "worker",
+      "project": "",
+      "effective_project": "worker",
+      "environment": "",
+      "image": "ghcr.io/acme/worker",
+      "env_file": "",
+      "env": {},
+      "command": [
+        "worker",
+        "--queue",
+        "default"
+      ],
+      "volumes": [
+        "/srv/worker:/data:ro"
+      ],
+      "network": "keelson-net",
+      "restart_policy": "always",
+      "stop_timeout_seconds": 5,
+      "health_timeout_seconds": 90,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 5,
+      "soak_seconds": null,
+      "verify": [],
+      "keep_images": 3,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": false,
+        "domains": [],
+        "published_ports": [
+          {
+            "host_ip": "127.0.0.1",
+            "host_port": "9000",
+            "container_port": "9000",
+            "proto": "tcp"
+          },
+          {
+            "host_ip": "",
+            "host_port": "5353",
+            "container_port": "5353",
+            "proto": "udp"
+          }
+        ],
+        "proxy_container_port": 0,
+        "host_ports": [],
+        "host_port_env": "",
+        "health_path": ""
+      },
+      "release": null,
+      "build": null,
+      "extra_networks": [],
+      "managed_databases": []
+    }
+  ],
+  "jobs": [
+    {
+      "name": "backup-ledger",
+      "project": "",
+      "kind": "backup",
+      "synthesized": true,
+      "database": "ledger",
+      "schedule": "30 3 * * *",
+      "timezone": "Europe/Paris",
+      "timeout_seconds": 3600,
+      "alert_after": 2,
+      "realert_after_seconds": 86400,
+      "catch_up": false,
+      "paused": true,
+      "argv": [],
+      "dir": "",
+      "container_app": "",
+      "http": null
+    },
+    {
+      "name": "backup-shop",
+      "project": "shop",
+      "kind": "backup",
+      "synthesized": true,
+      "database": "shop",
+      "schedule": "0 3 * * *",
+      "timezone": "UTC",
+      "timeout_seconds": 1800,
+      "alert_after": 1,
+      "realert_after_seconds": 86400,
+      "catch_up": false,
+      "paused": false,
+      "argv": [],
+      "dir": "",
+      "container_app": "",
+      "http": null
+    },
+    {
+      "name": "blog-reindex",
+      "project": "blog",
+      "kind": "container",
+      "synthesized": false,
+      "database": "",
+      "schedule": "@hourly",
+      "timezone": "UTC",
+      "timeout_seconds": 60,
+      "alert_after": 1,
+      "realert_after_seconds": 86400,
+      "catch_up": false,
+      "paused": false,
+      "argv": [
+        "reindex"
+      ],
+      "dir": "",
+      "container_app": "blog",
+      "http": null
+    },
+    {
+      "name": "ping",
+      "project": "",
+      "kind": "http",
+      "synthesized": false,
+      "database": "",
+      "schedule": "@every 10m",
+      "timezone": "UTC",
+      "timeout_seconds": 60,
+      "alert_after": 1,
+      "realert_after_seconds": 43200,
+      "catch_up": false,
+      "paused": false,
+      "argv": [],
+      "dir": "",
+      "container_app": "",
+      "http": {
+        "url": "https://shop.example.com/api/ping?<hidden>",
+        "method": "POST",
+        "headers": {
+          "X-Source": "<hidden>"
+        },
+        "body": "<hidden>",
+        "bearer": {
+          "file": "/etc/keelson/ping-token",
+          "app": "",
+          "env": ""
+        },
+        "expect_status": [
+          200,
+          204
+        ]
+      }
+    },
+    {
+      "name": "purge",
+      "project": "",
+      "kind": "host",
+      "synthesized": false,
+      "database": "",
+      "schedule": "@daily",
+      "timezone": "Europe/Paris",
+      "timeout_seconds": 600,
+      "alert_after": 3,
+      "realert_after_seconds": 0,
+      "catch_up": true,
+      "paused": false,
+      "argv": [
+        "/srv/purge.sh",
+        "--older-than",
+        "30d"
+      ],
+      "dir": "/srv",
+      "container_app": "",
+      "http": null
+    },
+    {
+      "name": "warm-cache",
+      "project": "",
+      "kind": "container",
+      "synthesized": false,
+      "database": "",
+      "schedule": "*/15 * * * *",
+      "timezone": "UTC",
+      "timeout_seconds": 60,
+      "alert_after": 1,
+      "realert_after_seconds": 86400,
+      "catch_up": false,
+      "paused": true,
+      "argv": [
+        "node",
+        "warm.js"
+      ],
+      "dir": "",
+      "container_app": "shop",
+      "http": null
+    }
+  ],
+  "databases": [
+    {
+      "name": "blog",
+      "project": "blog",
+      "engine": "postgres",
+      "host": "keelson-postgres",
+      "port": 5432,
+      "database": "blog",
+      "user": "blog",
+      "password_file": "/var/lib/keelson/postgres/roles/blog",
+      "ssl_mode": "",
+      "version": 17,
+      "network": "keelson",
+      "managed": true,
+      "app": "blog",
+      "env_key": "DATABASE_URL",
+      "backup": null
+    },
+    {
+      "name": "ledger",
+      "project": "",
+      "engine": "postgres",
+      "host": "db.internal",
+      "port": 5433,
+      "database": "ledger",
+      "user": "app",
+      "password_file": "/etc/keelson/db-ledger",
+      "ssl_mode": "require",
+      "version": 16,
+      "network": "keelson-net",
+      "managed": false,
+      "app": "",
+      "env_key": "",
+      "backup": {
+        "schedule": "30 3 * * *",
+        "timezone": "Europe/Paris",
+        "recipients": [
+          "age1wn7dkjxred46y40slmr4jpdxm30958ehls6lmr58d6tv7xe05ggqyfu7qk"
+        ],
+        "keep": 30,
+        "keep_days": 90,
+        "keep_pre_deploy": 2,
+        "timeout_seconds": 3600,
+        "alert_after": 2,
+        "paused": true,
+        "destinations": [
+          {
+            "kind": "local",
+            "dir": "/var/backups/keelson",
+            "endpoint": "",
+            "region": "",
+            "bucket": "",
+            "prefix": "",
+            "access_key_id": "",
+            "secret_key_file": ""
+          },
+          {
+            "kind": "s3",
+            "dir": "",
+            "endpoint": "https://s3.eu-west-3.amazonaws.com",
+            "region": "eu-west-3",
+            "bucket": "acme-backups",
+            "prefix": "ledger",
+            "access_key_id": "AKIAEXAMPLE",
+            "secret_key_file": "/etc/keelson/s3-secret"
+          }
+        ]
+      }
+    },
+    {
+      "name": "shop",
+      "project": "shop",
+      "engine": "postgres",
+      "host": "keelson-postgres",
+      "port": 5432,
+      "database": "shop",
+      "user": "shop",
+      "password_file": "/var/lib/keelson/postgres/roles/shop",
+      "ssl_mode": "",
+      "version": 17,
+      "network": "keelson",
+      "managed": true,
+      "app": "shop",
+      "env_key": "DATABASE_URL",
+      "backup": {
+        "schedule": "0 3 * * *",
+        "timezone": "UTC",
+        "recipients": [
+          "age1wn7dkjxred46y40slmr4jpdxm30958ehls6lmr58d6tv7xe05ggqyfu7qk"
+        ],
+        "keep": 14,
+        "keep_days": 0,
+        "keep_pre_deploy": 5,
+        "timeout_seconds": 1800,
+        "alert_after": 1,
+        "paused": false,
+        "destinations": [
+          {
+            "kind": "local",
+            "dir": "/var/lib/keelson/backups",
+            "endpoint": "",
+            "region": "",
+            "bucket": "",
+            "prefix": "",
+            "access_key_id": "",
+            "secret_key_file": ""
+          }
+        ]
+      }
+    }
+  ],
+  "previews": [
+    {
+      "app": "blog",
+      "domain": "pr-{pr}-blog.example.com",
+      "env_file": "",
+      "env": {
+        "NODE_ENV": "<hidden>"
+      },
+      "ttl_seconds": 86400,
+      "max": 3,
+      "instance_example": {
+        "name": "blog-pr-1",
+        "parent": "blog",
+        "project": "blog",
+        "effective_project": "blog",
+        "environment": "pr-1",
+        "image": "ghcr.io/acme/blog",
+        "env_file": "",
+        "env": {
+          "NODE_ENV": "<hidden>"
+        },
+        "command": [],
+        "volumes": [],
+        "network": "",
+        "restart_policy": "unless-stopped",
+        "stop_timeout_seconds": 10,
+        "health_timeout_seconds": 90,
+        "stable_after_seconds": 10,
+        "stable_after_explicit": false,
+        "drain_seconds": 5,
+        "soak_seconds": null,
+        "verify": [],
+        "keep_images": 0,
+        "log": {
+          "driver": "json-file",
+          "max_size_bytes": 10485760,
+          "max_file": 3
+        },
+        "routing": {
+          "proxied": true,
+          "domains": [
+            "pr-1-blog.example.com"
+          ],
+          "published_ports": [],
+          "proxy_container_port": 2368,
+          "host_ports": [],
+          "host_port_env": "",
+          "health_path": ""
+        },
+        "release": null,
+        "build": null,
+        "extra_networks": [],
+        "managed_databases": []
+      }
+    }
+  ],
+  "registries": [
+    {
+      "host": "ghcr.io",
+      "username": "bot",
+      "password_file": "/etc/keelson/ghcr-token"
+    },
+    {
+      "host": "registry.example.com",
+      "username": "ci",
+      "password_file": "/etc/keelson/example-registry"
+    }
+  ],
+  "proxy": {
+    "type": "caddy",
+    "admin": "http://127.0.0.1:2019",
+    "acme_email": "ops@example.com",
+    "tls": "internal",
+    "trusted_proxies": [
+      "103.21.244.0/22",
+      "2400:cb00::/32"
+    ],
+    "client_ip_header": "CF-Connecting-IP",
+    "access_log": "/var/log/caddy/access.log",
+    "certificates": [
+      {
+        "cert_file": "/etc/ssl/origin.pem",
+        "key_file": "/etc/ssl/origin.key"
+      }
+    ],
+    "sites": [
+      {
+        "kind": "static",
+        "hosts": [
+          "static.example.com"
+        ],
+        "root": "/var/www/static",
+        "not_found": "404.html",
+        "immutable": [
+          "/_next/static/*"
+        ],
+        "try_files": [
+          "{path}",
+          "{path}.html",
+          "{path}/"
+        ],
+        "index": "index.html",
+        "upstream": "",
+        "redirect": null,
+        "headers": {
+          "X-Frame-Options": "DENY"
+        }
+      },
+      {
+        "kind": "redirect",
+        "hosts": [
+          "old.example.com"
+        ],
+        "root": "",
+        "not_found": "",
+        "immutable": [],
+        "try_files": [],
+        "index": "",
+        "upstream": "",
+        "redirect": {
+          "to": "https://new.example.com{uri}",
+          "code": 301
+        },
+        "headers": {}
+      },
+      {
+        "kind": "upstream",
+        "hosts": [
+          "api.example.com"
+        ],
+        "root": "",
+        "not_found": "",
+        "immutable": [],
+        "try_files": [],
+        "index": "",
+        "upstream": "127.0.0.1:9000",
+        "redirect": null,
+        "headers": {}
+      }
+    ],
+    "upstreams_file": "",
+    "test": [],
+    "reload": []
+  },
+  "notifications": {
+    "name": "coverage",
+    "events": [
+      "deployment.failed",
+      "disk.high",
+      "job.failed",
+      "job.missed"
+    ],
+    "webhooks": [
+      {
+        "url": "<hidden>",
+        "secret_file": "/etc/keelson/hook-secret"
+      }
+    ],
+    "telegram": {
+      "bot_token_file": "/etc/keelson/telegram-token",
+      "chat_id": "-100123",
+      "api_url": "https://api.telegram.org"
+    },
+    "heartbeat": {
+      "url": "<hidden>",
+      "every_seconds": 600
+    },
+    "disk_alert_percent": 90,
+    "memory_alert_percent": 8,
+    "alert_cooldown_seconds": 0
+  },
+  "managed_postgres": {
+    "version": 17,
+    "port": 5443,
+    "memory_bytes": 1073741824,
+    "image": "postgres:17-alpine"
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "dump_format": 1,
+  "apps": [],
+  "jobs": [],
+  "databases": [],
+  "previews": [],
+  "registries": [],
+  "proxy": {
+    "type": "caddy",
+    "admin": "http://127.0.0.1:2019",
+    "acme_email": "ops@example.com",
+    "tls": "",
+    "trusted_proxies": [
+      "173.245.48.0/20",
+      "103.21.244.0/22",
+      "103.22.200.0/22",
+      "103.31.4.0/22",
+      "141.101.64.0/18",
+      "108.162.192.0/18",
+      "190.93.240.0/20",
+      "188.114.96.0/20",
+      "197.234.240.0/22",
+      "198.41.128.0/17",
+      "162.158.0.0/15",
+      "104.16.0.0/13",
+      "104.24.0.0/14",
+      "172.64.0.0/13",
+      "131.0.72.0/22",
+      "2400:cb00::/32",
+      "2606:4700::/32",
+      "2803:f800::/32",
+      "2405:b500::/32",
+      "2405:8100::/32",
+      "2a06:98c0::/29",
+      "2c0f:f248::/32"
+    ],
+    "client_ip_header": "CF-Connecting-IP",
+    "access_log": "",
+    "certificates": [],
+    "sites": [
+      {
+        "kind": "static",
+        "hosts": [
+          "www.example.com"
+        ],
+        "root": "/var/www/example",
+        "not_found": "404.html",
+        "immutable": [
+          "/_next/static/*",
+          "*.ico",
+          "*.png",
+          "*.jpg",
+          "*.svg",
+          "*.webp",
+          "*.woff2"
+        ],
+        "try_files": [
+          "{path}",
+          "{path}.html",
+          "{path}/"
+        ],
+        "index": "index.html",
+        "upstream": "",
+        "redirect": null,
+        "headers": {
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "DENY"
+        }
+      },
+      {
+        "kind": "redirect",
+        "hosts": [
+          "example.com"
+        ],
+        "root": "",
+        "not_found": "",
+        "immutable": [],
+        "try_files": [],
+        "index": "",
+        "upstream": "",
+        "redirect": {
+          "to": "https://www.example.com{uri}",
+          "code": 301
+        },
+        "headers": {}
+      },
+      {
+        "kind": "static",
+        "hosts": [
+          "example.org"
+        ],
+        "root": "/var/www/docs",
+        "not_found": "404.html",
+        "immutable": [
+          "/_next/static/*",
+          "*.woff2"
+        ],
+        "try_files": [
+          "{path}",
+          "{path}.html",
+          "{path}/"
+        ],
+        "index": "index.html",
+        "upstream": "",
+        "redirect": null,
+        "headers": {
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "DENY"
+        }
+      },
+      {
+        "kind": "redirect",
+        "hosts": [
+          "www.example.org"
+        ],
+        "root": "",
+        "not_found": "",
+        "immutable": [],
+        "try_files": [],
+        "index": "",
+        "upstream": "",
+        "redirect": {
+          "to": "https://example.org{uri}",
+          "code": 301
+        },
+        "headers": {}
+      },
+      {
+        "kind": "upstream",
+        "hosts": [
+          "keelson.example.com"
+        ],
+        "root": "",
+        "not_found": "",
+        "immutable": [],
+        "try_files": [],
+        "index": "",
+        "upstream": "127.0.0.1:3100",
+        "redirect": null,
+        "headers": {}
+      }
+    ],
+    "upstreams_file": "",
+    "test": [],
+    "reload": []
+  },
+  "notifications": null,
+  "managed_postgres": {
+    "version": 16,
+    "port": 5442,
+    "memory_bytes": 536870912,
+    "image": "postgres:16-alpine"
+  }
+}

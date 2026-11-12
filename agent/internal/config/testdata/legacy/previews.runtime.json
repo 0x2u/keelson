@@ -1,0 +1,151 @@
+{
+  "dump_format": 1,
+  "apps": [
+    {
+      "name": "shop",
+      "project": "shop",
+      "effective_project": "shop",
+      "environment": "production",
+      "image": "ghcr.io/acme/shop",
+      "env_file": "/etc/keelson/shop.env",
+      "env": {},
+      "command": [],
+      "volumes": [
+        "/srv/shop/uploads:/app/uploads"
+      ],
+      "network": "",
+      "restart_policy": "unless-stopped",
+      "stop_timeout_seconds": 10,
+      "health_timeout_seconds": 90,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 5,
+      "soak_seconds": 30,
+      "verify": [],
+      "keep_images": 3,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": true,
+        "domains": [
+          "shop.example.com"
+        ],
+        "published_ports": [],
+        "proxy_container_port": 3000,
+        "host_ports": [],
+        "host_port_env": "",
+        "health_path": "/healthz"
+      },
+      "release": {
+        "on_rollback": false,
+        "steps": [
+          {
+            "name": "migrate",
+            "kind": "container",
+            "argv": [
+              "node",
+              "migrate.js"
+            ],
+            "dir": "",
+            "image": "",
+            "database": "",
+            "timeout_seconds": 600,
+            "continue_on_failure": false
+          }
+        ]
+      },
+      "build": null,
+      "extra_networks": [],
+      "managed_databases": []
+    }
+  ],
+  "jobs": [],
+  "databases": [],
+  "previews": [
+    {
+      "app": "shop",
+      "domain": "pr-{pr}-shop.example.com",
+      "env_file": "/etc/keelson/shop-preview.env",
+      "env": {
+        "NODE_ENV": "<hidden>"
+      },
+      "ttl_seconds": 259200,
+      "max": 5,
+      "instance_example": {
+        "name": "shop-pr-1",
+        "parent": "shop",
+        "project": "shop",
+        "effective_project": "shop",
+        "environment": "pr-1",
+        "image": "ghcr.io/acme/shop",
+        "env_file": "/etc/keelson/shop-preview.env",
+        "env": {
+          "NODE_ENV": "<hidden>"
+        },
+        "command": [],
+        "volumes": [],
+        "network": "",
+        "restart_policy": "unless-stopped",
+        "stop_timeout_seconds": 10,
+        "health_timeout_seconds": 90,
+        "stable_after_seconds": 10,
+        "stable_after_explicit": false,
+        "drain_seconds": 5,
+        "soak_seconds": null,
+        "verify": [],
+        "keep_images": 0,
+        "log": {
+          "driver": "json-file",
+          "max_size_bytes": 10485760,
+          "max_file": 3
+        },
+        "routing": {
+          "proxied": true,
+          "domains": [
+            "pr-1-shop.example.com"
+          ],
+          "published_ports": [],
+          "proxy_container_port": 3000,
+          "host_ports": [],
+          "host_port_env": "",
+          "health_path": "/healthz"
+        },
+        "release": null,
+        "build": null,
+        "extra_networks": [],
+        "managed_databases": []
+      }
+    }
+  ],
+  "registries": [
+    {
+      "host": "ghcr.io",
+      "username": "me",
+      "password_file": "/etc/keelson/ghcr-token"
+    }
+  ],
+  "proxy": {
+    "type": "caddy",
+    "admin": "http://127.0.0.1:2019",
+    "acme_email": "ops@example.com",
+    "tls": "",
+    "trusted_proxies": [],
+    "client_ip_header": "",
+    "access_log": "",
+    "certificates": [],
+    "sites": [],
+    "upstreams_file": "",
+    "test": [],
+    "reload": []
+  },
+  "notifications": null,
+  "managed_postgres": {
+    "version": 16,
+    "port": 5442,
+    "memory_bytes": 536870912,
+    "image": "postgres:16-alpine"
+  }
+}

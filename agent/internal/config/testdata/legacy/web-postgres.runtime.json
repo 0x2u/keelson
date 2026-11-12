@@ -1,0 +1,165 @@
+{
+  "dump_format": 1,
+  "apps": [
+    {
+      "name": "web-demo",
+      "project": "web-demo",
+      "effective_project": "web-demo",
+      "environment": "production",
+      "image": "keelson-local/web-demo",
+      "env_file": "",
+      "env": {
+        "DEMO_MESSAGE": "<hidden>",
+        "NODE_ENV": "<hidden>"
+      },
+      "command": [],
+      "volumes": [],
+      "network": "",
+      "restart_policy": "unless-stopped",
+      "stop_timeout_seconds": 10,
+      "health_timeout_seconds": 90,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 5,
+      "soak_seconds": 30,
+      "verify": [],
+      "keep_images": 3,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": true,
+        "domains": [
+          "staging.example.com"
+        ],
+        "published_ports": [],
+        "proxy_container_port": 3000,
+        "host_ports": [],
+        "host_port_env": "",
+        "health_path": "/api/health"
+      },
+      "release": {
+        "on_rollback": false,
+        "steps": [
+          {
+            "name": "check-env",
+            "kind": "container",
+            "argv": [
+              "node",
+              "scripts/check-env.js"
+            ],
+            "dir": "",
+            "image": "",
+            "database": "",
+            "timeout_seconds": 60,
+            "continue_on_failure": false
+          },
+          {
+            "name": "migrate",
+            "kind": "container",
+            "argv": [
+              "node",
+              "node_modules/prisma/build/index.js",
+              "migrate",
+              "deploy"
+            ],
+            "dir": "",
+            "image": "",
+            "database": "",
+            "timeout_seconds": 600,
+            "continue_on_failure": false
+          }
+        ]
+      },
+      "build": {
+        "preset": "",
+        "dockerfile": "Dockerfile.keelson",
+        "install": "",
+        "build_command": "",
+        "start": "",
+        "output_dir": "",
+        "node": "",
+        "spa": null,
+        "standalone": false,
+        "context": ".",
+        "target": "",
+        "args": {
+          "NEXT_PUBLIC_APP_VERSION": "demo",
+          "NEXT_PUBLIC_SITE_NAME": "Web demo"
+        },
+        "timeout_seconds": 1200,
+        "memory_bytes": 2147483648,
+        "cpus": 1,
+        "max_source_bytes": 536870912,
+        "network": "",
+        "effective_network": "keelson",
+        "database": true,
+        "platform": "",
+        "builder_only": false,
+        "source_hosts": [
+          "api.github.com",
+          "codeload.github.com"
+        ]
+      },
+      "extra_networks": [],
+      "managed_databases": []
+    }
+  ],
+  "jobs": [
+    {
+      "name": "prune-guestbook",
+      "project": "",
+      "kind": "http",
+      "synthesized": false,
+      "database": "",
+      "schedule": "0 4 * * *",
+      "timezone": "UTC",
+      "timeout_seconds": 60,
+      "alert_after": 1,
+      "realert_after_seconds": 86400,
+      "catch_up": false,
+      "paused": false,
+      "argv": [],
+      "dir": "",
+      "container_app": "",
+      "http": {
+        "url": "https://staging.example.com/api/cron",
+        "method": "POST",
+        "headers": {},
+        "body": "",
+        "bearer": {
+          "file": "",
+          "app": "web-demo",
+          "env": "CRON_SECRET"
+        },
+        "expect_status": []
+      }
+    }
+  ],
+  "databases": [],
+  "previews": [],
+  "registries": [],
+  "proxy": {
+    "type": "caddy",
+    "admin": "http://127.0.0.1:2019",
+    "acme_email": "",
+    "tls": "",
+    "trusted_proxies": [],
+    "client_ip_header": "",
+    "access_log": "",
+    "certificates": [],
+    "sites": [],
+    "upstreams_file": "",
+    "test": [],
+    "reload": []
+  },
+  "notifications": null,
+  "managed_postgres": {
+    "version": 16,
+    "port": 5442,
+    "memory_bytes": 536870912,
+    "image": "postgres:16-alpine"
+  }
+}

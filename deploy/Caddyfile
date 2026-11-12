@@ -1,0 +1,8 @@
+# Caddy in front of the dashboard (compose.tls.yaml). KEELSON_DOMAIN is the address Keelson is served at: Caddy obtains and renews its
+# certificate by itself and redirects http to https.
+{$KEELSON_DOMAIN} {
+	# Servers that connect out keep a streamed response open on /api/relay/connect: send it on as it arrives, never buffered.
+	reverse_proxy dashboard:3000 {
+		flush_interval -1
+	}
+}

@@ -1,0 +1,21 @@
+# Scrape the agent of this server with a Prometheus (or Grafana Alloy, or the Grafana Agent) that runs on the same server.
+#
+# The agent listens on 127.0.0.1:7070 by default and answers /metrics to the same bearer token as the rest of its read API:
+# put that token in a file only the Prometheus account can read. An agent that connects out to the dashboard has no inbound
+# port but still has this loopback listener, so it is scraped from the machine it runs on. To scrape an agent over the
+# network, use its mutual TLS listener and give `tls_config` the client certificate it requires.
+global:
+  scrape_interval: 30s
+
+rule_files:
+  - keelson.rules.yml
+
+scrape_configs:
+  - job_name: keelson-agent
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/keelson-agent-token
+    static_configs:
+      - targets: ["127.0.0.1:7070"]
+        labels: {server: vps-1}
