@@ -80,6 +80,8 @@ func startStack(ctx context.Context, c stackConfig) (s *stack, err error) {
 		DataPaths: []string{c.dataDir},
 		Version:   version,
 		Proven:    func(ctx context.Context, at time.Time) error { return s.st.RecordProof(ctx, store.ProofAlert, "", at) },
+		CertNames: func() []string { return notify.CertNames(s.deployer.Config()) },
+		CertProbe: notify.LocalCertProbe,
 	})
 	if err = s.notifier.Reconfigure(s.deployer.Config().Notifications); err != nil {
 		return nil, err

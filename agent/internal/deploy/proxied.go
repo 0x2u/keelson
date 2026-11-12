@@ -15,6 +15,7 @@ import (
 
 	"github.com/0x2u/keelson/agent/internal/config"
 	"github.com/0x2u/keelson/agent/internal/docker"
+	"github.com/0x2u/keelson/agent/internal/notify"
 	"github.com/0x2u/keelson/agent/internal/proxy"
 	"github.com/0x2u/keelson/agent/internal/store"
 )
@@ -405,15 +406,42 @@ func (d *Deployer) Reconcile(ctx context.Context) error {
 	}
 	routes = d.withPlaceholders(sortedRoutes(routes), apps)
 
-	if d.appliedSet && reflect.DeepEqual(routes, d.applied) && !d.proxyDrifted(ctx, routes) {
+	// Drift means the proxy lost what *this* agent had put there. Before the first apply of the process there is
+	// nothing to have lost: a proxy that serves something else is simply not configured yet.
+	hadApplied := d.appliedSet
+	same := hadApplied && reflect.DeepEqual(routes, d.applied)
+	drifted := d.proxyDrifted(ctx, routes) && hadApplied
+	if same && !drifted {
+		d.driftSince = time.Time{}
 		return nil
 	}
 	if err := d.proxyDriver().Apply(ctx, routes); err != nil {
 		return err
 	}
 	d.applied, d.appliedSet = routes, true
-	d.log.Info("proxy routes updated", "routes", len(routes))
+	if drifted {
+		d.reportDrift(len(routes))
+	} else {
+		d.driftSince = time.Time{}
+	}
+	d.log.Info("proxy routes updated", "routes", len(routes), "drifted", drifted)
 	return nil
+}
+
+// reportDrift tells the operator that the proxy no longer served what the agent had applied, and that the agent put
+// it back. A drift that lasts (a proxy that loses the configuration at every reconcile, something that rewrites it)
+// is said once per driftSilence, not at every run of the reconciler.
+func (d *Deployer) reportDrift(routes int) {
+	now := d.now()
+	if !d.driftSince.IsZero() && now.Sub(d.driftSince) < driftSilence {
+		return
+	}
+	d.driftSince = now
+	d.emit(notify.Event{
+		Type: config.EventProxyDrifted, Severity: notify.SeverityWarning,
+		Title:   "The proxy no longer served what the agent had applied",
+		Message: fmt.Sprintf("Something changed the proxy's configuration, or it restarted empty. The agent applied its %d route(s) again, so the apps answer; look at what changed it (a manual edit, another tool, a restart of the container).", routes),
+	})
 }
 
 // proxyDrifted tells whether the proxy itself no longer serves what was applied: Caddy was restarted (it comes back

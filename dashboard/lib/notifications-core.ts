@@ -18,6 +18,11 @@ export const KNOWN_EVENTS: { value: string; label: string }[] = [
   { value: "app.recovered", label: "An app recovered" },
   { value: "job.failed", label: "A job failed" },
   { value: "job.recovered", label: "A job recovered" },
+  { value: "certificate.expiring", label: "A certificate is about to expire" },
+  { value: "certificate.renewed", label: "A certificate was renewed" },
+  { value: "proxy.drifted", label: "The proxy no longer served what the agent had applied" },
+  { value: "dashboard.unreachable", label: "The server cannot reach the dashboard" },
+  { value: "dashboard.recovered", label: "The server reaches the dashboard again" },
   { value: "job.missed", label: "Scheduled runs were missed (the agent was not running)" },
   { value: "engine.down", label: "The Docker engine stopped answering" },
   { value: "engine.recovered", label: "The Docker engine answers again" },
@@ -36,6 +41,9 @@ export const DEFAULT_EVENTS = [
   "app.recovered",
   "job.failed",
   "job.recovered",
+  "certificate.expiring",
+  "certificate.renewed",
+  "proxy.drifted",
 ];
 
 export const DEFAULT_DISK_PERCENT = 85;

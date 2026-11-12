@@ -16,6 +16,13 @@ import (
 // one it stays silent. It must be set before deployments start.
 func (d *Deployer) SetEmitter(e notify.Emitter) { d.emitter = e }
 
+// emit sends one event, if there is anywhere to send it.
+func (d *Deployer) emit(e notify.Event) {
+	if d.emitter != nil {
+		d.emitter.Emit(e)
+	}
+}
+
 // Config returns the apps configuration the deployer works with.
 func (d *Deployer) Config() *config.Config { return d.config() }
 

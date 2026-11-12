@@ -755,6 +755,8 @@ export interface NotificationsConfig {
   disk_alert_percent?: number;
   memory_alert_percent?: number;
   alert_cooldown?: string;
+  /** Days before a certificate expires at which certificate.expiring is raised; the agent's default is 14. */
+  cert_warn_days?: number;
 }
 
 /** A non-app site of the Caddy proxy: exactly one of `root`, `upstream` and `redirect`. */

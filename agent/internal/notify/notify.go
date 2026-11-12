@@ -219,9 +219,14 @@ func (n *Notifier) run() {
 // others. The event counts as delivered when at least one channel got it: another channel being down must not make
 // the sender of the alert believe nobody was told.
 func (n *Notifier) deliver(ctx context.Context, e Event) {
+	status, failed := n.send(ctx, e)
+	n.record(e, status, failed)
+}
+
+// send delivers one event to every channel and reports how it went for the history.
+func (n *Notifier) send(ctx context.Context, e Event) (status string, failed []string) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var failed []string
 	for _, s := range n.senders {
 		wg.Add(1)
 		go func() {
@@ -236,7 +241,7 @@ func (n *Notifier) deliver(ctx context.Context, e Event) {
 	}
 	wg.Wait()
 	slices.Sort(failed)
-	status := StatusDelivered
+	status = StatusDelivered
 	switch {
 	case len(n.senders) == 0:
 		status = StatusNoChannel
@@ -245,7 +250,18 @@ func (n *Notifier) deliver(ctx context.Context, e Event) {
 	case len(failed) > 0:
 		status = StatusPartial
 	}
-	n.record(e, status, failed)
+	return status, failed
+}
+
+// Resend tries an event of the history that never reached anyone. The record is updated where it is, so the history
+// keeps one line per event with how the last attempt went and how many were made, instead of a copy per attempt.
+// It reports whether the event got through this time.
+func (n *Notifier) Resend(ctx context.Context, r Record) bool {
+	e := r.Event
+	e.Done = nil
+	status, failed := n.send(ctx, e)
+	n.ledger.Update(r.Seq, status, failed)
+	return Record{Status: status}.Delivered()
 }
 
 // record puts the outcome of an event in the history and tells whoever asked to know.

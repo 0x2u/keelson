@@ -202,8 +202,8 @@ describe("channels and events in words", () => {
   });
 
   it("summarises the events: the agent's default when the file has none, otherwise a count", () => {
-    expect(eventsSummary(undefined)).toEqual({ text: "Default (7)", list: [...DEFAULT_EVENTS].sort() });
-    expect(eventsSummary({ disk_alert_percent: 90 })).toEqual({ text: "Default (7)", list: [...DEFAULT_EVENTS].sort() });
+    expect(eventsSummary(undefined)).toEqual({ text: `Default (${DEFAULT_EVENTS.length})`, list: [...DEFAULT_EVENTS].sort() });
+    expect(eventsSummary({ disk_alert_percent: 90 })).toEqual({ text: `Default (${DEFAULT_EVENTS.length})`, list: [...DEFAULT_EVENTS].sort() });
     expect(eventsSummary({ events: [] })).toEqual({ text: "None", list: [] });
     expect(eventsSummary({ events: ["job.failed"] })).toEqual({ text: "1 event", list: ["job.failed"] });
     expect(eventsSummary({ events: ["job.failed", "app.down", "app.down"] })).toEqual({ text: "2 events", list: ["app.down", "job.failed"] });

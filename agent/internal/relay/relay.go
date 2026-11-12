@@ -94,6 +94,11 @@ type Options struct {
 	Client *http.Client
 	// Logf says what happens: connected, disconnected and why.
 	Logf func(format string, args ...any)
+	// OnUp is called every time the dashboard greets this machine, OnDown every time a connection ends or cannot be
+	// made, with the reason (no URL in it). They tell the agent's notifications that the link is up or down; both are
+	// optional and must not block.
+	OnUp   func()
+	OnDown func(reason string)
 
 	// timing is replaced by the tests: the zero value is the real one.
 	timing timing
@@ -155,6 +160,8 @@ type runner struct {
 	handler    http.Handler
 	client     *http.Client
 	logf       func(format string, args ...any)
+	onUp       func()
+	onDown     func(reason string)
 	t          timing
 
 	inflight atomic.Int32
@@ -167,7 +174,7 @@ type runner struct {
 func Run(ctx context.Context, opt Options) error {
 	r := &runner{
 		base: strings.TrimRight(opt.Dashboard, "/"), credential: opt.Credential, name: opt.Name, handler: opt.Handler,
-		client: opt.Client, logf: opt.Logf, t: opt.timing.withDefaults(),
+		client: opt.Client, logf: opt.Logf, onUp: opt.OnUp, onDown: opt.OnDown, t: opt.timing.withDefaults(),
 	}
 	if r.client == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -199,6 +206,9 @@ func Run(ctx context.Context, opt Options) error {
 			what = "disconnected"
 		}
 		r.logf("%s (%s), retrying in %s", what, reason(err), roundWait(wait))
+		if r.onDown != nil {
+			r.onDown(reason(err))
+		}
 		if !r.t.sleep(ctx, wait) {
 			return nil
 		}
@@ -303,6 +313,9 @@ func (r *runner) session(ctx context.Context) (hello bool, err error) {
 		case "hello":
 			hello = true
 			r.logf("connected to %s as %s", r.base, r.name)
+			if r.onUp != nil {
+				r.onUp()
+			}
 		case "request":
 			s.start(m)
 		case "cancel":

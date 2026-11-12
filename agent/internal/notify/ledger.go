@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 )
@@ -35,6 +36,10 @@ type Record struct {
 	Event
 	Status         string   `json:"status"`
 	FailedChannels []string `json:"failed_channels,omitempty"`
+	// Seq numbers the records of this ledger, so that one can be found again after a restart. Add sets it.
+	Seq int64 `json:"seq,omitempty"`
+	// Retries counts the times the agent sent this event again because it had not got through (see Pending).
+	Retries int `json:"retries,omitempty"`
 }
 
 // Delivered reports whether the event reached at least one channel.
@@ -58,6 +63,7 @@ type Ledger struct {
 	mu     sync.Mutex
 	events []Record // oldest first
 	jobs   map[string]JobAlert
+	seq    int64
 }
 
 type ledgerFile struct {
@@ -95,21 +101,74 @@ func OpenLedger(path string, log *slog.Logger) *Ledger {
 	if f.Jobs != nil {
 		l.jobs = f.Jobs
 	}
+	for _, r := range l.events {
+		l.seq = max(l.seq, r.Seq)
+	}
 	return l
 }
 
-// Add records an event.
-func (l *Ledger) Add(r Record) {
+// Add records an event and returns the sequence number it was given.
+func (l *Ledger) Add(r Record) int64 {
 	if l == nil {
-		return
+		return 0
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if r.Seq == 0 {
+		l.seq++
+		r.Seq = l.seq
+	}
 	l.events = append(l.events, r)
 	if len(l.events) > KeepHistory {
 		l.events = append([]Record(nil), l.events[len(l.events)-KeepHistory:]...)
 	}
 	l.saveLocked()
+	return r.Seq
+}
+
+// Pending lists the events that never reached a channel and are worth sending again: those that failed, were dropped
+// by a full queue, or had no channel at all (a job that failed before the first webhook was configured), raised no
+// longer ago than maxAge and tried fewer than maxRetries times. Oldest first, so they arrive in the order they
+// happened.
+func (l *Ledger) Pending(now time.Time, maxAge time.Duration, maxRetries int) []Record {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var out []Record
+	for _, r := range l.events {
+		switch r.Status {
+		case StatusFailed, StatusDropped, StatusNoChannel:
+		default:
+			continue
+		}
+		if r.Retries >= maxRetries || now.Sub(r.Time) > maxAge {
+			continue
+		}
+		out = append(out, r)
+	}
+	slices.SortStableFunc(out, func(a, b Record) int { return a.Time.Compare(b.Time) })
+	return out
+}
+
+// Update replaces the outcome of the record with that sequence number: how the new attempt went, and that one more
+// was made. A record that has fallen out of the history is forgotten, and nothing is written.
+func (l *Ledger) Update(seq int64, status string, failed []string) {
+	if l == nil || seq == 0 {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for i := range l.events {
+		if l.events[i].Seq != seq {
+			continue
+		}
+		l.events[i].Status, l.events[i].FailedChannels = status, failed
+		l.events[i].Retries++
+		l.saveLocked()
+		return
+	}
 }
 
 // Events returns the newest events first, at most limit of them.

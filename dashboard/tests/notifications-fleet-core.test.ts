@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HIDDEN, type NotificationsConfig } from "@/lib/agent-types";
-import { NEW_URL_TEXT, type NotificationsTemplate } from "@/lib/notifications-core";
+import { DEFAULT_EVENTS, NEW_URL_TEXT, type NotificationsTemplate } from "@/lib/notifications-core";
 import {
   countsByFilter,
   differingIds,
@@ -56,7 +56,7 @@ describe("notificationsRow", () => {
       hash: "h1",
       read: true,
       channels: { telegram: false, webhooks: 0, heartbeat: false },
-      events: { text: "Default (7)", list: expect.any(Array) },
+      events: { text: `Default (${DEFAULT_EVENTS.length})`, list: expect.any(Array) },
       differs: [],
       test: { kind: "never" },
     });

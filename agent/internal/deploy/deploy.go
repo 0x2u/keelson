@@ -58,6 +58,9 @@ const (
 
 	// TriggerRollback is the trigger recorded on the deployments that put back an earlier version.
 	TriggerRollback = "rollback"
+	// driftSilence is how long after a proxy.drifted event the next one is held back: the reconciler runs every few
+	// seconds, and a drift that lasts must not send a message at every run.
+	driftSilence = time.Hour
 )
 
 var (
@@ -174,6 +177,9 @@ type Deployer struct {
 	proxyMu    sync.Mutex
 	applied    []proxy.Route
 	appliedSet bool
+	// driftSince is when the proxy was last found drifted and said so: a drift that lasts is reported once per
+	// driftSilence (see reportDrift). Guarded by proxyMu, like applied.
+	driftSince time.Time
 }
 
 // New returns a Deployer. px may be nil when no app is deployed blue/green.

@@ -68,9 +68,10 @@ Not tested on real servers:
 
 ## Alerts and monitoring
 
-- The agent keeps the last 200 notifications with their delivery status, but an undelivered one is not retried after a restart. An event raised while the agent is down, or queued when it is killed, is lost. The agent cannot report its own death: use the heartbeat.
-- There is no alert for proxy drift, and none when the dashboard cannot reach an agent.
-- A job that failed before any notification channel existed is not announced when a channel is added later. A new failure does alert.
+- An event raised while the agent is not running is never raised at all, and one still queued when the agent is killed is lost. What reached the history unsent (`failed`, `dropped`, `no_channel`) is sent again when channels come back, within 24 hours and three attempts. The agent cannot report its own death: use the heartbeat.
+- `dashboard.unreachable` is raised by an agent that connects out and loses the link for three minutes. It says nothing about an agent on a listener, or about a server that is gone altogether: the heartbeat, or `up == 0` on a Prometheus scraping `/metrics`, is what covers those.
+- The certificate watch reads what the proxy serves on `127.0.0.1:443`. A name served elsewhere, a proxy on another port, or TLS terminated by a CDN in front is not watched; the agent has no view of the certificate a visitor is given.
+- `proxy.drifted` says that the proxy no longer served what the agent had applied and was put right. It does not say what changed it, and a drift that lasts is reported once an hour.
 - The Telegram API has not been exercised in tests. The secret files of a channel must already exist on each agent.
 - Host and container statistics are kept for 24 hours and uptime for 30 days by the agent; longer history and trends are for a Prometheus scraping `/metrics` ([Metrics](reference/metrics.md)), which has no per-container CPU and memory and no histograms. There is no trend or time-to-full for the disk in the dashboard.
 - The dashboard colours resource usage at fixed 85 and 95 percent. The agent alerts at the configured `disk_alert_percent` and `memory_alert_percent`.

@@ -389,6 +389,7 @@ const notificationsConfig = shape({
   disk_alert_percent: opt(num),
   memory_alert_percent: opt(num),
   alert_cooldown: opt(durations),
+  cert_warn_days: opt(num),
 });
 
 /** The sections of a configuration model the dashboard knows; `build_limits` is the agent's own (the dashboard reads it from /v1/system). */

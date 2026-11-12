@@ -18,14 +18,19 @@ const (
 	EventAppRecovered             = "app.recovered"
 	EventJobFailed                = "job.failed"
 	EventJobRecovered             = "job.recovered"
+	EventCertificateExpiring      = "certificate.expiring"
+	EventCertificateRenewed       = "certificate.renewed"
+	EventProxyDrifted             = "proxy.drifted"
 	// The events below are never part of DefaultEvents: they are sent only when events lists them.
-	EventJobMissed       = "job.missed"
-	EventEngineDown      = "engine.down"
-	EventEngineRecovered = "engine.recovered"
-	EventDiskHigh        = "disk.high"
-	EventDiskRecovered   = "disk.recovered"
-	EventMemoryLow       = "memory.low"
-	EventAgentStarted    = "agent.started"
+	EventJobMissed            = "job.missed"
+	EventEngineDown           = "engine.down"
+	EventEngineRecovered      = "engine.recovered"
+	EventDiskHigh             = "disk.high"
+	EventDiskRecovered        = "disk.recovered"
+	EventMemoryLow            = "memory.low"
+	EventAgentStarted         = "agent.started"
+	EventDashboardUnreachable = "dashboard.unreachable"
+	EventDashboardRecovered   = "dashboard.recovered"
 )
 
 // DefaultEvents is what is sent when Notifications.Events is empty: everything
@@ -38,6 +43,9 @@ var DefaultEvents = []string{
 	EventAppRecovered,
 	EventJobFailed,
 	EventJobRecovered,
+	EventCertificateExpiring,
+	EventCertificateRenewed,
+	EventProxyDrifted,
 }
 
 var knownEvents = map[string]bool{
@@ -56,6 +64,11 @@ var knownEvents = map[string]bool{
 	EventDiskRecovered:            true,
 	EventMemoryLow:                true,
 	EventAgentStarted:             true,
+	EventCertificateExpiring:      true,
+	EventCertificateRenewed:       true,
+	EventProxyDrifted:             true,
+	EventDashboardUnreachable:     true,
+	EventDashboardRecovered:       true,
 }
 
 const (
@@ -71,6 +84,13 @@ const (
 	AlertHysteresis           = 5
 	// DefaultAlertCooldown is the time an app that went down must wait before a new app.down is sent for it.
 	DefaultAlertCooldown = 5 * time.Minute
+	// DefaultCertWarnDays is how many days before a certificate expires certificate.expiring is raised. The warning is
+	// raised again as the time left crosses the shorter steps (notify.CertWarnSteps), not every day.
+	DefaultCertWarnDays = 14
+	MaxCertWarnDays     = 90
+	// DashboardDownAfter is how long the link to the dashboard must stay down before dashboard.unreachable is raised:
+	// a reconnection takes seconds, and a dashboard being updated must not page anyone.
+	DashboardDownAfter = 3 * time.Minute
 )
 
 // Notifications says how the agent tells you something is wrong. It runs in
@@ -92,6 +112,8 @@ type Notifications struct {
 	// AlertCooldown is the time an app that went down and came back must wait before it can alert again, so a
 	// flapping app does not send a pair of messages every cycle; default 5m, 0s turns it off.
 	AlertCooldown *Duration `yaml:"alert_cooldown"`
+	// CertWarnDays is how many days before a certificate expires certificate.expiring is raised; default 14, at most 90.
+	CertWarnDays *int `yaml:"cert_warn_days"`
 }
 
 // Webhook receives every event as a JSON POST.
@@ -152,6 +174,14 @@ func (n *Notifications) Cooldown() time.Duration {
 	return n.AlertCooldown.Std()
 }
 
+// CertWarn is how many days before a certificate expires certificate.expiring is raised.
+func (n *Notifications) CertWarn() int {
+	if n.CertWarnDays == nil {
+		return DefaultCertWarnDays
+	}
+	return *n.CertWarnDays
+}
+
 // Interval is how often the heartbeat pings.
 func (h *Heartbeat) Interval() time.Duration {
 	if h.Every == nil {
@@ -208,6 +238,12 @@ func (c *Config) validateNotifications() error {
 		n.AlertCooldown = D(DefaultAlertCooldown)
 	case n.AlertCooldown.Std() < 0:
 		return errors.New("notifications: alert_cooldown must not be negative")
+	}
+	switch {
+	case n.CertWarnDays == nil:
+		n.CertWarnDays = new(DefaultCertWarnDays)
+	case *n.CertWarnDays < 1 || *n.CertWarnDays > MaxCertWarnDays:
+		return fmt.Errorf("notifications: cert_warn_days must be between 1 and %d", MaxCertWarnDays)
 	}
 	for _, w := range n.Webhooks {
 		if err := httpURL(w.URL); err != nil {

@@ -786,6 +786,10 @@
           ],
           "description": "AlertCooldown is the time an app that went down and came back must wait before it can alert again, so a flapping app does not send a pair of messages every cycle; default 5m, 0s turns it off."
         },
+        "cert_warn_days": {
+          "description": "CertWarnDays is how many days before a certificate expires certificate.expiring is raised; default 14, at most 90.",
+          "type": "integer"
+        },
         "disk_alert_percent": {
           "description": "DiskAlertPercent is the use of the filesystem holding the engine's data or the agent's data above which disk.high is raised; default 85.",
           "type": "integer"

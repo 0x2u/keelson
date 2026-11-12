@@ -298,11 +298,19 @@ func serve(ctx context.Context, args []string) error {
 	relayDone := make(chan struct{})
 	if *relayFile != "" {
 		log.Info("keelson-agent connecting out", "dashboard", dash.Dashboard, "name", dash.Name, "version", version, "read_only", stk == nil, "listener", srv != nil)
+		// A link that stays down is an event like any other: the agent keeps its channels when the dashboard is away.
+		var link *notify.LinkWatcher
+		if stk != nil {
+			link = notify.NewLinkWatcher(config.DashboardDownAfter, stk.notifier.Emit, log)
+			defer link.Stop()
+		}
 		go func() {
 			defer close(relayDone)
 			err := relay.Run(relayCtx, relay.Options{
 				Dashboard: dash.Dashboard, Credential: dash.Credential, Name: dash.Name, Handler: handler,
-				Logf: func(format string, a ...any) { log.Info(fmt.Sprintf(format, a...), "relay", dash.Dashboard) },
+				Logf:   func(format string, a ...any) { log.Info(fmt.Sprintf(format, a...), "relay", dash.Dashboard) },
+				OnUp:   func() { link.Connected() },
+				OnDown: func(reason string) { link.Disconnected(reason) },
 			})
 			if err != nil {
 				errc <- relayStopped(err)

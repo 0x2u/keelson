@@ -25,6 +25,9 @@ type Service struct {
 	cancel context.CancelFunc
 
 	hooks Hooks
+	// retryAfter is the wait before the pending events are sent again, retryGap the pause between two of them; the
+	// tests shorten both.
+	retryAfter, retryGap time.Duration
 	// engineRoot is where the engine keeps its data, as the engine last said: the disk check measures its filesystem.
 	engineRoot atomic.Value // string
 	started    bool         // agent.started was handled for this process
@@ -46,6 +49,10 @@ type Hooks struct {
 	// Proven is told when a test reached every channel (and there was one), so that the proof outlives the process. It is how
 	// "the alert channel works" becomes a fact the agent can show; without it nothing is recorded.
 	Proven func(ctx context.Context, at time.Time) error
+	// CertNames lists the names whose certificate is watched (the domains the proxy of this server serves), and
+	// CertProbe reads the certificate served for one of them; without either, certificate.expiring is never sent.
+	CertNames func() []string
+	CertProbe CertProbe
 }
 
 // SetHooks must be called before the first Reconfigure.
@@ -63,7 +70,7 @@ func NewService(ctx context.Context, src Source, log *slog.Logger) *Service {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Service{ctx: ctx, src: src, log: log}
+	return &Service{ctx: ctx, src: src, log: log, retryAfter: RetryAfter, retryGap: retryGap}
 }
 
 // Emit implements Emitter.
@@ -205,6 +212,7 @@ func (s *Service) swap(nc *config.Notifications, n *Notifier) {
 	if nc.Heartbeat != nil {
 		go RunHeartbeat(runCtx, nc.Heartbeat.URL, nc.Heartbeat.Interval(), s.log)
 	}
+	go s.retryPending(runCtx, n)
 	s.log.Info("notifications enabled", "channels", n.Channels(), "heartbeat", nc.Heartbeat != nil)
 }
 
@@ -230,6 +238,58 @@ func (s *Service) startHostWatchers(ctx context.Context, nc *config.Notification
 			return out
 		}
 		go NewHostMonitor(s.hooks.Host, paths, n.Emit, disk, mem, s.log).Run(ctx)
+	}
+	if s.hooks.CertNames != nil && s.hooks.CertProbe != nil && (nc.EventEnabled(config.EventCertificateExpiring) || nc.EventEnabled(config.EventCertificateRenewed)) {
+		go NewCertWatcher(s.hooks.CertNames, s.hooks.CertProbe, nc.CertWarn, n.Emit, s.log).Run(ctx)
+	}
+}
+
+// Retry of what never got through. An agent that was restarted, or whose webhook was down, or that had no channel at
+// all when a job failed, has events in its history that nobody ever saw; when channels are in force again they are
+// sent once more, oldest first.
+const (
+	// RetryAfter is the wait before the pending events are tried, so that a restart does not send a burst before the
+	// agent has settled (Service.retryAfter).
+	RetryAfter = 30 * time.Second
+	// RetryMaxAge is how old an event may be and still be worth sending: past that it is history, not news.
+	RetryMaxAge = 24 * time.Hour
+	// RetryLimit is how many times one event is tried again before it is left in the history as failed.
+	RetryLimit = 3
+	// retryGap is the pause between two retried events, so that a backlog does not hit a rate limit.
+	retryGap = 2 * time.Second
+)
+
+// retryPending sends again what never reached a channel. It skips what the configuration in force does not select:
+// an event turned off since it was raised is not news either.
+func (s *Service) retryPending(ctx context.Context, n *Notifier) {
+	if s.hooks.Ledger == nil || len(n.senders) == 0 {
+		return
+	}
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(s.retryAfter):
+	}
+	pending := s.hooks.Ledger.Pending(time.Now(), RetryMaxAge, RetryLimit)
+	sent := 0
+	for _, r := range pending {
+		if ctx.Err() != nil {
+			return
+		}
+		if !n.cfg.EventEnabled(r.Type) {
+			continue
+		}
+		if n.Resend(ctx, r) {
+			sent++
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(s.retryGap):
+		}
+	}
+	if len(pending) > 0 {
+		s.log.Info("notifications that had not got through were sent again", "tried", len(pending), "delivered", sent)
 	}
 }
 
