@@ -1,0 +1,65 @@
+{
+  "dump_format": 1,
+  "apps": [
+    {
+      "name": "shop-staging",
+      "project": "shop",
+      "effective_project": "shop",
+      "environment": "staging",
+      "image": "ghcr.io/acme/shop",
+      "env_file": "/var/www/shop-staging/.env",
+      "env": {
+        "NODE_ENV": "<hidden>",
+        "PORT": "<hidden>"
+      },
+      "command": [],
+      "volumes": [],
+      "network": "host",
+      "restart_policy": "unless-stopped",
+      "stop_timeout_seconds": 10,
+      "health_timeout_seconds": 120,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 5,
+      "soak_seconds": null,
+      "verify": [],
+      "keep_images": 2,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": false,
+        "domains": [],
+        "published_ports": [],
+        "proxy_container_port": 0,
+        "host_ports": [],
+        "host_port_env": "",
+        "health_path": ""
+      },
+      "release": null,
+      "build": null,
+      "extra_networks": [],
+      "managed_databases": []
+    }
+  ],
+  "jobs": [],
+  "databases": [],
+  "previews": [],
+  "registries": [
+    {
+      "host": "ghcr.io",
+      "username": "acme",
+      "password_file": "/etc/keelson/ghcr-token"
+    }
+  ],
+  "proxy": null,
+  "notifications": null,
+  "managed_postgres": {
+    "version": 16,
+    "port": 5442,
+    "memory_bytes": 536870912,
+    "image": "postgres:16-alpine"
+  }
+}

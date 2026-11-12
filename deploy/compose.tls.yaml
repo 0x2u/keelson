@@ -1,0 +1,25 @@
+# HTTPS for your own domain: Caddy gets and renews the certificate, and is the only thing published on the host. Use it with compose.yaml:
+#   KEELSON_DOMAIN=keelson.example.com docker compose -f compose.yaml -f compose.tls.yaml up -d
+# (install.sh --domain keelson.example.com writes KEELSON_DOMAIN and COMPOSE_FILE to .env, so a plain `docker compose up -d` does this.)
+# The domain must resolve to this machine and ports 80 and 443 must be reachable, or no certificate can be issued.
+services:
+  dashboard:
+    ports: !reset [] # no longer published on the host: only Caddy reaches it
+    environment:
+      KEELSON_PUBLIC_URL: https://${KEELSON_DOMAIN:?set KEELSON_DOMAIN to the domain Keelson is served at}
+      KEELSON_TRUST_PROXY: "true" # one proxy hop: Caddy sets X-Forwarded-For to the address it saw
+      KEELSON_INSECURE_COOKIES: "false"
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      KEELSON_DOMAIN: ${KEELSON_DOMAIN}
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro,z", "caddy-data:/data", "caddy-config:/config"] # caddy-data holds the certificates
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [dashboard]
+volumes:
+  caddy-data:
+  caddy-config:

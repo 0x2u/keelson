@@ -1,0 +1,372 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  agent:
+    # The amd64 job keeps the name the branch ruleset requires; the arm64 one is added next to it.
+    name: ${{ matrix.arch == 'amd64' && 'Agent' || format('Agent ({0})', matrix.arch) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-latest}
+          - {arch: arm64, runner: ubuntu-24.04-arm}
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - name: Format
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race ./...
+
+  contract:
+    name: Agent and dashboard contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: dashboard/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+      # Builds the agent, runs it against a stand-in engine, and writes what it answers to contract/agent.
+      - name: Capture what the agent answers
+        run: scripts/capture-contract.sh
+      - name: The capture is what is committed
+        run: |
+          if [ -n "$(git status --porcelain -- contract)" ]; then
+            git status --short -- contract
+            git --no-pager diff -- contract
+            echo "::error::the agent's API shape changed: regenerate with scripts/capture-contract.sh, update the dashboard, commit"
+            exit 1
+          fi
+      - run: pnpm install --frozen-lockfile
+        working-directory: dashboard
+      - name: Dashboard contract tests
+        run: pnpm run test:contract
+        working-directory: dashboard
+
+  action:
+    name: Deploy action
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: ShellCheck
+        run: shellcheck action/deploy.sh scripts/*.sh
+
+  install:
+    name: Install files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: ShellCheck
+        run: shellcheck deploy/install.sh
+      - name: Compose files
+        env:
+          KEELSON_DOMAIN: keelson.example.com
+        run: |
+          docker compose -f deploy/compose.yaml config --quiet
+          docker compose -f deploy/compose.yaml -f deploy/compose.tls.yaml config --quiet
+      - name: Caddyfile
+        run: |
+          docker run --rm -e KEELSON_DOMAIN=keelson.example.com -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+
+  dashboard:
+    name: Dashboard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: dashboard/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm run lint
+      - name: Type check
+        run: pnpm run type-check
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm run build
+
+  mcp:
+    name: MCP server
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: mcp/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: mcp/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm run lint
+      - name: Type check
+        run: pnpm run type-check
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm run build
+
+  # The release builds this image for two platforms on tag day: build it here, for one, so a broken Dockerfile fails a pull request.
+  dashboard-image:
+    name: Dashboard image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build, no push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: dashboard/Dockerfile
+          platforms: linux/amd64
+          push: false
+          build-args: |
+            VERSION=ci
+            REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=ci-dashboard
+          cache-to: type=gha,scope=ci-dashboard,mode=max
+
+  # Runs the real install script against the image built from this commit (its testing hooks keep it off the registry and on
+  # a free loopback port), then runs it again with the same version: the second run must keep the data volume.
+  install-smoke:
+    name: Install script
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KEELSON_IMAGE: keelson-dashboard-ci
+      KEELSON_PORT: "3999"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: dashboard/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: keelson-dashboard-ci:ci
+          build-args: |
+            VERSION=ci
+            REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=ci-dashboard
+      - name: Install
+        run: sh deploy/install.sh --dir "$RUNNER_TEMP/keelson" --version ci
+      - name: The dashboard answers on the loopback port
+        run: curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3999/api/health
+      - name: Put something in the data volume
+        working-directory: ${{ runner.temp }}/keelson
+        run: docker compose exec -T dashboard sh -c 'echo kept > /data/ci-marker'
+      - name: Install again, same version
+        run: sh deploy/install.sh --dir "$RUNNER_TEMP/keelson" --version ci
+      - name: The second run kept the data and the settings
+        working-directory: ${{ runner.temp }}/keelson
+        run: |
+          test "$(docker compose exec -T dashboard cat /data/ci-marker)" = kept
+          grep -qx 'KEELSON_VERSION=ci' .env
+          curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3999/api/health
+      - name: Logs on failure
+        if: failure()
+        working-directory: ${{ runner.temp }}/keelson
+        run: docker compose logs --no-color --tail 80 || true
+      - name: Clean up
+        if: always()
+        working-directory: ${{ runner.temp }}/keelson
+        run: docker compose down -v || true
+
+  # The tests that need a real Docker engine or a real Caddy container: they skip unless these variables are set, so the
+  # other jobs stay fast and this one is the proof that the agent still works against the real thing.
+  real-engine:
+    # The amd64 job keeps the name the branch ruleset requires; the arm64 one is added next to it.
+    name: ${{ matrix.arch == 'amd64' && 'Agent on a real engine' || format('Agent on a real engine ({0})', matrix.arch) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-latest}
+          - {arch: arm64, runner: ubuntu-24.04-arm}
+    env:
+      KEELSON_DOCKER_TEST: "1"
+      KEELSON_CADDY_TEST: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      # The tests never pull: they use what is on the host.
+      - name: Pull the images the tests build from or run
+        run: |
+          for image in alpine:3.20 nginx:alpine postgres:16-alpine caddy:2-alpine; do docker pull --quiet "$image"; done
+      - name: Real engine tests
+        working-directory: agent
+        run: go test -p 1 -count=1 -run '^TestReal' -v ./internal/...
+
+  # The failed-deployment demo of the README, end to end with the real agent binary: it exits non-zero unless the broken
+  # version failed, the previous one is serving again and answers.
+  demo-rollback:
+    name: Failed deployment demo (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-latest}
+          - {arch: arm64, runner: ubuntu-24.04-arm}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - name: Run the demo
+        run: scripts/demo-rollback.sh
+
+  # The JSON Schemas are made from the agent's structs: they must be what is committed, every example of the documentation
+  # must pass `config validate --strict` and the schema, and an invalid file must fail both.
+  config-schema:
+    name: Configuration schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - name: The schema files are what the code makes
+        run: go run ./cmd/genschema -check
+      - name: Every example passes config validate
+        run: |
+          go build -o "$RUNNER_TEMP/keelson-agent" ./cmd/keelson-agent
+          for f in ../docs/examples/*.apps.yaml; do "$RUNNER_TEMP/keelson-agent" config validate --strict --apps "$f"; done
+      - name: Every example passes the schema
+        run: |
+          pip install --quiet check-jsonschema==0.39.0
+          check-jsonschema --schemafile ../docs/json-schema/apps.schema.json ../docs/examples/*.apps.yaml
+      - name: A wrong file fails both
+        run: |
+          printf 'apps:\n  - {name: web, image: x, helth_path: /h, stop_timeout: 30}\n' > "$RUNNER_TEMP/bad.yaml"
+          if "$RUNNER_TEMP/keelson-agent" config validate --apps "$RUNNER_TEMP/bad.yaml"; then echo "config validate accepted a wrong file"; exit 1; fi
+          if check-jsonschema --schemafile ../docs/json-schema/apps.schema.json "$RUNNER_TEMP/bad.yaml"; then echo "the schema accepted a wrong file"; exit 1; fi
+
+  # The metrics are what Prometheus will read: a real agent's answer must pass promtool's lint, and the example alert rules
+  # must be valid and fire (and stay quiet) as their tests say.
+  prometheus:
+    name: Prometheus metrics and rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PROMTOOL_IMAGE: prom/prometheus:v3.16.0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - name: Example rules and scrape configuration
+        working-directory: docs/examples/prometheus
+        run: |
+          promtool() { docker run --rm -v "$PWD":/w -v "$RUNNER_TEMP/token":/etc/prometheus/keelson-agent-token -w /w --entrypoint promtool "$PROMTOOL_IMAGE" "$@"; }
+          echo token > "$RUNNER_TEMP/token"
+          promtool check rules keelson.rules.yml
+          promtool check config prometheus.yml
+          promtool test rules keelson.rules.test.yml
+      - name: A real agent answers valid Prometheus text
+        working-directory: agent
+        run: |
+          go build -o "$RUNNER_TEMP/keelson-agent" ./cmd/keelson-agent
+          token=$(openssl rand -hex 32)
+          KEELSON_TOKEN=$token "$RUNNER_TEMP/keelson-agent" serve --listen 127.0.0.1:7070 --data-dir "$RUNNER_TEMP" >"$RUNNER_TEMP/agent.log" 2>&1 &
+          for _ in $(seq 30); do curl -fs -H "Authorization: Bearer $token" http://127.0.0.1:7070/metrics >"$RUNNER_TEMP/metrics.txt" && break; sleep 1; done
+          grep -q '^keelson_engine_up 1$' "$RUNNER_TEMP/metrics.txt"
+          docker run --rm -i --entrypoint promtool "$PROMTOOL_IMAGE" check metrics <"$RUNNER_TEMP/metrics.txt"
+      - name: Agent log on failure
+        if: failure()
+        run: cat "$RUNNER_TEMP/agent.log" || true
+
+  audit:
+    name: Known vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: dashboard/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Agent (govulncheck)
+        working-directory: agent
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: Dashboard production dependencies
+        working-directory: dashboard
+        run: pnpm audit --prod --audit-level high
+      - name: MCP server production dependencies
+        working-directory: mcp
+        run: pnpm audit --prod --audit-level high

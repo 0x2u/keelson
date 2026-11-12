@@ -1,0 +1,200 @@
+name: release
+
+# A tag such as v0.1.0 (or v0.2.0-rc.1 for a pre-release) publishes, in this order:
+#   1. the dashboard image for linux/amd64 and linux/arm64 on GitHub's container registry, tagged v0.1.0 and latest
+#      (a pre-release gets only its own tag), carrying the same agent binaries it installs on servers, with a build provenance
+#      record and an SBOM attached to the image;
+#   2. the GitHub release, once the image exists: the agent binaries for linux and darwin, amd64 and arm64, with SHA256SUMS and
+#      a build provenance attestation for each binary, and the files of deploy/ (compose.yaml, compose.tls.yaml, Caddyfile,
+#      install.sh) that the install command downloads.
+# The version is the tag itself: scripts/build-agent.sh and the image's VERSION build arg both receive it, so the agent, the
+# dashboard and the update check all say v0.1.0.
+#
+# A tag is only released when it looks like a version and its commit is on main: anything else fails in the first job.
+# Run it by hand (Actions, release, Run workflow) to rehearse: every job runs on the chosen branch, the image is built but not
+# pushed, and no release is created or changed. Publishing only ever happens from a tag push.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Rehearsal: build everything, publish nothing (the only mode a manual run supports)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: A manual run is a rehearsal
+        if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+        run: |
+          echo "::error::a manual run cannot publish: push a tag such as v0.1.0 from main, or run this with dry_run on"
+          exit 1
+      - name: The tag is a version and its commit is on main
+        if: github.event_name == 'push'
+        run: |
+          if ! printf '%s' "${GITHUB_REF_NAME}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'; then
+            echo "::error::'${GITHUB_REF_NAME}' is not a release tag such as v0.1.0 or v0.2.0-rc.1"
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::${GITHUB_REF_NAME} points at ${GITHUB_SHA}, which is not on main: merge it first, then tag main"
+            exit 1
+          fi
+
+  agent:
+    name: Agent binaries
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # to sign the build provenance attestation
+      attestations: write
+    env:
+      VERSION: ${{ github.event_name == 'push' && github.ref_name || 'v0.0.0-dry-run' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - name: Test
+        working-directory: agent
+        run: go test ./...
+      - name: Build static binaries for linux and darwin, amd64 and arm64, with SHA256SUMS
+        run: scripts/build-agent.sh "${VERSION}" dist/agent
+      - name: Attest where the binaries were built from
+        # GitHub only stores attestations for public repositories (a rehearsal in a private one skips this step).
+        if: github.event_name == 'push' && !github.event.repository.private
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/agent/keelson-agent-*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: agent
+          path: dist/agent/*
+          if-no-files-found: error
+
+  dashboard:
+    name: Dashboard image
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ github.event_name == 'push' && github.ref_name || 'v0.0.0-dry-run' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Log in to the registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Tags
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/keelson-dashboard
+          # the tag itself (v0.1.0) always, which is what compose.yaml and install.sh pull; latest only for a release, never for a
+          # pre-release such as v0.2.0-rc.1.
+          # A rehearsal (manual run) gets one throwaway tag and pushes nothing.
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ github.ref_name }},enable=${{ github.event_name == 'push' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && !contains(github.ref_name, '-') }}
+            type=raw,value=dry-run,enable=${{ github.event_name != 'push' }}
+      # provenance and sbom attach two more entries to the image index (shown as unknown/unknown on the package page); the
+      # image itself is unchanged and docker pull picks the right platform as before.
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: dashboard/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' }}
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            REVISION=${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Check that the tag install.sh pulls exists
+        if: github.event_name == 'push'
+        run: docker buildx imagetools inspect "ghcr.io/${GITHUB_REPOSITORY}-dashboard:${GITHUB_REF_NAME}" > /dev/null
+
+  release:
+    name: GitHub release
+    needs: [agent, dashboard]
+    # A rehearsal ends with the image build: it never creates or changes a release.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: agent
+          path: dist/agent
+      - name: Notes
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/keelson-dashboard:${GITHUB_REF_NAME}"
+          download="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          cat > notes.md <<EOF
+          ## Install
+
+          \`\`\`sh
+          curl -fsSL ${download}/install.sh | sudo sh -s -- --version ${GITHUB_REF_NAME}
+          \`\`\`
+
+          Add \`--domain keelson.example.com\` for HTTPS with an automatic certificate. The command prints the address to open and the
+          one-time token the first visit asks for.
+
+          ## Update
+
+          Back up first (Settings, Backup), then run the same command on the machine that hosts the dashboard. It keeps your data,
+          the master key, your settings and the domain. Then update each server's agent from its Update page. A downgrade is not
+          supported: restore the backup taken before the update. Steps: docs/hosting.md, Upgrading.
+
+          ## Check what you download
+
+          Image: \`${image}\` (linux/amd64, linux/arm64), with its build provenance and SBOM attached. The agent binaries below carry
+          the same version and each has a build provenance attestation (\`gh attestation verify <file> --repo ${GITHUB_REPOSITORY}\`);
+          the dashboard installs its own copy on your servers, so you rarely need them. Check a download against \`SHA256SUMS\`.
+
+          \`install.sh\` and the compose files are fetched over https from this release and are not signed: read them before you run
+          them, or download the files and run \`sh install.sh\` from a folder that holds them.
+
+          ## Changes
+
+          EOF
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "${GITHUB_REF_NAME}" in *-*) kind=--prerelease ;; *) kind=--latest ;; esac
+          gh release create "${GITHUB_REF_NAME}" dist/agent/* deploy/compose.yaml deploy/compose.tls.yaml deploy/Caddyfile deploy/install.sh \
+            --title "${GITHUB_REF_NAME}" --notes-file notes.md --generate-notes --verify-tag "${kind}"

@@ -1,0 +1,1239 @@
+{
+  "$defs": {
+    "App": {
+      "additionalProperties": false,
+      "description": "App is one container the agent deploys and keeps running.",
+      "properties": {
+        "build": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Build"
+            }
+          ],
+          "description": "Build, when set, lets the dashboard have this agent build the image from a source archive (a GitHub App installation) instead of pulling one CI built. See Build."
+        },
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "database": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/AppDatabase"
+            }
+          ],
+          "description": "Database is the database the agent creates for the app on its managed PostgreSQL. See AppDatabase."
+        },
+        "deploy": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Deploy"
+            }
+          ],
+          "description": "Deploy chooses how the app is deployed. See Deploy."
+        },
+        "domains": {
+          "description": "Domains route public hostnames to the app through the reverse proxy. An app with domains is deployed blue/green: the new container runs next to the old one and traffic switches once it is healthy, so there is no outage. It needs Port and the top-level proxy section.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "drain": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "Drain is how long the previous version keeps running after the proxy has switched to the new one, so that requests a proxy worker still routes to it are not refused. Default 5s; 0s stops it at once."
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "env_file": {
+          "type": "string"
+        },
+        "environment": {
+          "description": "Stage is the environment (the field is named so because App already has an Environment method).",
+          "type": "string"
+        },
+        "health_path": {
+          "description": "HealthPath, if set, is requested over HTTP on the new container's port and must answer 2xx before traffic switches. It checks the port the new container really listens on, which an image HEALTHCHECK with a fixed port would not.",
+          "type": "string"
+        },
+        "health_timeout": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "HealthTimeout bounds the wait for the new container to become healthy. Default 90s."
+        },
+        "image": {
+          "description": "Image is the repository without tag or digest. Deploy requests only choose the tag or digest, never the repository: whoever can call the deploy API cannot make the agent run an arbitrary image.",
+          "type": "string"
+        },
+        "keep_images": {
+          "description": "KeepImages is how many of the most recently deployed versions stay on the server (the running one included); older images of this app are removed after a successful deployment. Default 3.",
+          "type": "integer"
+        },
+        "log": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Log"
+            }
+          ],
+          "description": "Log sets how Docker keeps the container's output. Without it, logs are rotated (json-file, 10 MiB, 3 files): an app that logs a lot must not fill the disk."
+        },
+        "name": {
+          "type": "string"
+        },
+        "network": {
+          "description": "Network is a network name, or \"host\".",
+          "type": "string"
+        },
+        "port": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/port"
+            }
+          ],
+          "description": "Port is the port of a blue/green app: the container port the proxy forwards to (the agent publishes it on a random loopback host port), or, with network: host, the two host ports the app alternates between and the variable that tells it which one to listen on. See PortSpec."
+        },
+        "previews": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Previews"
+            }
+          ],
+          "description": "Previews is the template of the app's per-pull-request environments. See Previews."
+        },
+        "project": {
+          "description": "Project and Environment place the app in the dashboard's Projects view: the same project on several servers (or several apps of one server) with a different environment each, such as production and staging. They label only: nothing here changes how the app runs. Both are optional; the dashboard reads a missing project as the app's name and a missing environment as \"production\".",
+          "type": "string"
+        },
+        "publish": {
+          "description": "Publish are the fixed port mappings \"[hostip:]hostport:containerport[/proto]\".",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "release": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Release"
+            }
+          ],
+          "description": "Release runs between the pull and the switch: backup, migration."
+        },
+        "restart": {
+          "description": "Restart is the Docker restart policy: no, always, unless-stopped or on-failure. Default unless-stopped.",
+          "type": "string"
+        },
+        "soak": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "Soak is how long the previous version keeps running after the traffic switch (and the drain) while the new one is watched; if it fails the traffic goes back to the previous version. Default 30s; 0s turns it off. Only for blue/green apps."
+        },
+        "source": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Source"
+            }
+          ],
+          "description": "Source links the app to the repository it is built from. See Source."
+        },
+        "stable_after": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "StableAfter is how long a container must keep running (an image without HEALTHCHECK) or keep reporting healthy (an image with one, only when the file sets stable_after) before the traffic switches. Default 10s."
+        },
+        "stop_timeout": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "StopTimeout is the grace period before the old container is killed. Default 10s; 0s kills at once."
+        },
+        "verify": {
+          "description": "Verify lists pages requested on the new container during the soak, next to health_path.",
+          "items": {
+            "$ref": "#/$defs/Verify"
+          },
+          "type": "array"
+        },
+        "volumes": {
+          "description": "Volumes are \"source:target[:mode]\" binds.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "AppDatabase": {
+      "additionalProperties": false,
+      "description": "AppDatabase is the database the agent creates on its own PostgreSQL instance for an app: a database and a role of the app's name, the URL stored in the variable EnvKey of the app, the password in PasswordFile.",
+      "properties": {
+        "backups": {
+          "$ref": "#/$defs/Backups"
+        },
+        "env_key": {
+          "description": "EnvKey is the variable that holds its URL; default DATABASE_URL.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name is the name of the database and of its role; default: the name of the app.",
+          "type": "string"
+        },
+        "password_file": {
+          "description": "PasswordFile is the file the agent keeps the role's password in. Absolute path.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "BackupDestination": {
+      "additionalProperties": false,
+      "description": "BackupDestination is exactly one of a local directory or an S3-compatible bucket.",
+      "properties": {
+        "local": {
+          "$ref": "#/$defs/LocalDestination"
+        },
+        "s3": {
+          "$ref": "#/$defs/S3Destination"
+        }
+      },
+      "type": "object"
+    },
+    "Backups": {
+      "additionalProperties": false,
+      "description": "Backups says when a database is backed up, how long backups are kept and where they go.",
+      "properties": {
+        "alert_after": {
+          "type": "integer"
+        },
+        "catch_up": {
+          "type": "boolean"
+        },
+        "destinations": {
+          "description": "Destinations are the places backups go; every one must succeed.",
+          "items": {
+            "$ref": "#/$defs/BackupDestination"
+          },
+          "type": "array"
+        },
+        "keep": {
+          "description": "Keep is how many of the newest backups are kept; default 14.",
+          "type": "integer"
+        },
+        "keep_days": {
+          "description": "KeepDays also deletes the backups older than that many days; 0 = off. The newest backup is never deleted.",
+          "type": "integer"
+        },
+        "keep_pre_deploy": {
+          "description": "KeepPreDeploy is how many backups taken before a deployment (a `backup` release step) are kept, apart from keep: the same count applies to the safety backups taken before an overwrite restore. Default 5.",
+          "type": "integer"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "realert_after": {
+          "$ref": "#/$defs/duration"
+        },
+        "recipients": {
+          "description": "Recipients are age X25519 public keys: the backup can only be read with one of the matching secret keys, which the agent never holds.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "timeout": {
+          "$ref": "#/$defs/duration"
+        },
+        "timezone": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Build": {
+      "additionalProperties": false,
+      "description": "Build lets the agent build the app's image itself from a source archive the dashboard hands it (a GitHub App installation: see docs/hosting.md), instead of pulling an image CI built. The agent downloads the source, builds it with Docker on this server, tags the result \"\u003cimage\u003e:\u003ccommit sha\u003e\" locally and deploys it through the usual pipeline. Nothing is pushed to a registry, and nothing builds unless a build is requested: declaring this block only makes the app able to. A build executes the repository's Dockerfile on this server (or the Dockerfile of its preset). Build inputs are separate from deploy inputs: the arguments are not secret, and no secret (the app's env, its registries) is ever given to a build.",
+      "properties": {
+        "args": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Args are build arguments. They are NOT secret: they appear in the image history and in this document.",
+          "type": "object"
+        },
+        "build_command": {
+          "type": "string"
+        },
+        "context": {
+          "description": "Context is the subdirectory of the repository sent to Docker as the build context. Default \".\".",
+          "type": "string"
+        },
+        "cpus": {
+          "description": "CPUs caps their CPU time, in cores. Default 2.",
+          "type": "number"
+        },
+        "database": {
+          "description": "Database lets the build use the app's managed database: its URL is passed to the build as a build argument (the one case where a managed database's password reaches a build), and the build runs on the network that reaches it. For a build that queries its database to build (static pages filled from it) on a database that is new and empty.",
+          "type": "boolean"
+        },
+        "dockerfile": {
+          "description": "Dockerfile is the path of the Dockerfile inside Context. Default \"Dockerfile\". Not with a preset.",
+          "type": "string"
+        },
+        "install": {
+          "description": "Install, BuildCommand, Start, OutputDir, Node, SPA and Standalone tune a preset; they are refused without one. Their defaults are in presets.go.",
+          "type": "string"
+        },
+        "max_source": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/size"
+            }
+          ],
+          "description": "MaxSource is the largest source archive that is accepted, such as \"512m\". Default 512m."
+        },
+        "memory": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/size"
+            }
+          ],
+          "description": "Memory caps the memory of the build's containers, such as \"2g\". Default 2g."
+        },
+        "network": {
+          "description": "Network is the network the build's containers run on: empty is the engine's default bridge, \"host\" is the server's own network, any other value the name of a user-defined Docker network (such as the one the managed PostgreSQL lives on). Host is for a build that must reach something only the server sees (a database on 127.0.0.1 that a framework queries while it builds): the build's code then sees every port the server listens on, so turn it on only for a repository you trust to that level. A named network gives the build the containers on it, no more. Empty with `database: true` picks the network that reaches the app's managed database.",
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "only": {
+          "description": "Only makes the app a builder: this server builds its image and keeps it, nothing runs here. The dashboard then sends the image to the app that runs it, on another server (a build needs memory a small server of a site does not have to spare, and a server that builds can build for several). A build-only app has no container, no routing, no release steps and no volumes, and cannot be deployed or rolled back: its image is only built and exported. Deprecated: a server that builds for others declares build_limits, and the builds come through POST /v1/builds (see legacy_builder.go). Still read, with a deprecation warning, until the legacy code is removed.",
+          "type": "boolean"
+        },
+        "output_dir": {
+          "type": "string"
+        },
+        "platform": {
+          "description": "Platform is the platform the image is built for, \"linux/amd64\" or \"linux/arm64\". Empty builds for the engine's own. It is what lets a build machine of another architecture (an Apple-silicon Mac) produce what the server runs.",
+          "type": "string"
+        },
+        "preset": {
+          "description": "Preset makes the agent write the Dockerfile itself: nextjs, node, vite or static (see presets.go). Empty builds the repository's own Dockerfile. A preset and a dockerfile are alternatives.",
+          "type": "string"
+        },
+        "source_hosts": {
+          "description": "SourceHosts are the hosts the source may be downloaded from (an exact match on the host name; redirects may only go to these too, and to GitHub's codeload host). For GitHub Enterprise Server, list its host.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "spa": {
+          "type": "boolean"
+        },
+        "standalone": {
+          "type": "boolean"
+        },
+        "start": {
+          "type": "string"
+        },
+        "target": {
+          "description": "Target is the multi-stage target to build; empty builds the last stage.",
+          "type": "string"
+        },
+        "timeout": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "Timeout bounds the whole build, source download included. Default 15m, at most 1h."
+        }
+      },
+      "type": "object"
+    },
+    "BuildLimits": {
+      "additionalProperties": false,
+      "description": "BuildLimits is what a server that builds images for other servers accepts (the build_limits section). A request above a limit is refused, never clamped. Every key left out is its default: the ceiling the validator of a build block has always applied.",
+      "properties": {
+        "cpus": {
+          "description": "CPUs is the largest CPU cap, in cores. Default 256.",
+          "type": "number"
+        },
+        "host_network": {
+          "description": "HostNetwork lets a build run on the server's own network (build.network: host). Default false.",
+          "type": "boolean"
+        },
+        "keep_images": {
+          "description": "KeepImages is how many images of each repository stay on the server after a build. Default 3.",
+          "type": "integer"
+        },
+        "max_source": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/size"
+            }
+          ],
+          "description": "MaxSource is the largest source archive accepted. Default 8g."
+        },
+        "memory": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/size"
+            }
+          ],
+          "description": "Memory is the largest memory cap a build may ask for. Default: no ceiling."
+        },
+        "source_hosts": {
+          "description": "SourceHosts are the hosts a source may be downloaded from. Default: GitHub's API and codeload hosts.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timeout": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "Timeout is the longest a build may take. Default 1h."
+        }
+      },
+      "type": "object"
+    },
+    "Certificate": {
+      "additionalProperties": false,
+      "description": "Certificate is a certificate chain and its private key, as files Caddy reads (PEM).",
+      "properties": {
+        "cert_file": {
+          "type": "string"
+        },
+        "key_file": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ContainerAction": {
+      "additionalProperties": false,
+      "description": "ContainerAction runs Command in a throwaway container with the environment, volumes and network of an app.",
+      "properties": {
+        "app": {
+          "description": "App is the app a job runs in, from the version it is serving. A release step never sets it: it runs in the app being deployed.",
+          "type": "string"
+        },
+        "command": {
+          "description": "Command replaces the image's CMD.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "image": {
+          "description": "Image overrides the repository of a release step's container, for a tool that is not in the runtime image (a migrator). It is deployed with the same tag as the app, so CI builds both. A job never sets it.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Database": {
+      "additionalProperties": false,
+      "description": "Database is an existing PostgreSQL server the agent can see, back up and restore. Nothing here is a secret: the password and the S3 secret key stay in files. The databases the agent creates itself are not written here: they are the database of an app (App.Database), and Config.Databases lists them too once the file is parsed.",
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "backups": {
+          "$ref": "#/$defs/Backups"
+        },
+        "database": {
+          "type": "string"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "env_key": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "managed": {
+          "description": "Managed marks a database the agent created on its own PostgreSQL instance (see POST /v1/postgres/databases): a database and a role named like the entry, the instance's host and network, the password in PasswordFile. They are declared by App.Database; App is the app the database was created for and EnvKey the variable holding its URL. The three keys are also read from the legacy `managed: true` entry of a file that could not be migrated (see legacy.go).",
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "network": {
+          "description": "Network is the Docker network of the throwaway containers that reach the server; default host.",
+          "type": "string"
+        },
+        "password_file": {
+          "description": "PasswordFile holds the password; it is read at every run, so a rotation needs no restart.",
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "project": {
+          "description": "Project groups the database with the others of a project in the dashboard (see Job.Project). Optional.",
+          "type": "string"
+        },
+        "ssl_mode": {
+          "description": "SSLMode is PGSSLMODE: disable, allow, prefer, require, verify-ca or verify-full.",
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "version": {
+          "description": "Version is the PostgreSQL major version of the client tools; empty means the server's.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "Deploy": {
+      "additionalProperties": false,
+      "description": "Deploy is how the app is deployed. Without it the strategy follows the routing: an app with domains or a port is switched, any other is replaced.",
+      "properties": {
+        "strategy": {
+          "description": "Strategy is \"switch\" (blue/green; needs a port or domains) or \"replace\" (in place; no domains, no port).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Heartbeat": {
+      "additionalProperties": false,
+      "description": "Heartbeat pings a URL at a regular interval, for an external dead-man switch (such as Healthchecks.io) that alerts you when the pings stop: the only way to learn that a whole server, or the agent itself, is gone.",
+      "properties": {
+        "every": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "Every is the interval of the pings. Default 5m, at least 30s."
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Job": {
+      "additionalProperties": false,
+      "description": "Job is something the agent runs on a schedule: an HTTP call to an app (the cron endpoints GitHub Actions used to hit), a command on the host (a backup script, a log purge), or a command in a one-off container of an app. Its Schedule says when and how long, its Action what: exactly one of http, host and container.",
+      "properties": {
+        "alert_after": {
+          "type": "integer"
+        },
+        "backup": {
+          "type": "string"
+        },
+        "catch_up": {
+          "type": "boolean"
+        },
+        "container": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "host": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "http": {
+          "$ref": "#/$defs/JobHTTP"
+        },
+        "name": {
+          "type": "string"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "project": {
+          "description": "Project groups the job with the others of a project in the dashboard: the same label as App.Project. It is optional (the dashboard then derives it from the app the job calls). A job in projects.d/\u003cp\u003e.yaml is of the project \u003cp\u003e: unset is filled in, another value is an error. A backup job takes its database's.",
+          "type": "string"
+        },
+        "realert_after": {
+          "$ref": "#/$defs/duration"
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "timeout": {
+          "$ref": "#/$defs/duration"
+        },
+        "timezone": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "JobBearer": {
+      "additionalProperties": false,
+      "description": "JobBearer names where a bearer secret comes from: File, or the variable Env of the app App (its env and env_file). Exactly one of the two.",
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "env": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "JobHTTP": {
+      "additionalProperties": false,
+      "description": "JobHTTP is an HTTP request. A 2xx answer is success unless ExpectStatus lists others.",
+      "properties": {
+        "bearer": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/JobBearer"
+            }
+          ],
+          "description": "Bearer sends \"Authorization: Bearer \u003csecret\u003e\", the secret read from a file or from an app's environment each time the job runs."
+        },
+        "body": {
+          "type": "string"
+        },
+        "expect_status": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "method": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "LocalDestination": {
+      "additionalProperties": false,
+      "description": "LocalDestination is a directory on the agent's host.",
+      "properties": {
+        "dir": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Log": {
+      "additionalProperties": false,
+      "description": "Log is how Docker keeps a container's output.",
+      "properties": {
+        "driver": {
+          "description": "Driver is \"json-file\" (the default) or \"local\": both rotate by size.",
+          "type": "string"
+        },
+        "max_file": {
+          "description": "MaxFile is how many rotated files are kept. Default 3.",
+          "type": "integer"
+        },
+        "max_size": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/size"
+            }
+          ],
+          "description": "MaxSize is the size at which a log file is rotated. Default 10m."
+        }
+      },
+      "type": "object"
+    },
+    "ManagedPostgres": {
+      "additionalProperties": false,
+      "description": "ManagedPostgres are the choices of the managed PostgreSQL instance (the managed_postgres section), set once when the instance is created. Every key left out is its default. Changing them later does not touch a container that exists: see docs/reference/databases.md.",
+      "properties": {
+        "memory": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/size"
+            }
+          ],
+          "description": "Memory caps the container, such as \"512m\" or \"1g\". Default 512m; the server's settings follow it."
+        },
+        "port": {
+          "description": "Port is the loopback port the instance is published on, for apps on the host network. Default 5442.",
+          "type": "integer"
+        },
+        "version": {
+          "description": "Version is the PostgreSQL major version, run as postgres:\u003cversion\u003e-alpine. Default 16.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "Notifications": {
+      "additionalProperties": false,
+      "description": "Notifications says how the agent tells you something is wrong. It runs in the agent, not in the dashboard: the dashboard may well be switched off when a deployment fails or a container dies.",
+      "properties": {
+        "alert_cooldown": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "AlertCooldown is the time an app that went down and came back must wait before it can alert again, so a flapping app does not send a pair of messages every cycle; default 5m, 0s turns it off."
+        },
+        "disk_alert_percent": {
+          "description": "DiskAlertPercent is the use of the filesystem holding the engine's data or the agent's data above which disk.high is raised; default 85.",
+          "type": "integer"
+        },
+        "events": {
+          "description": "Events lists what to send. Absent means DefaultEvents; an empty list sends nothing.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "heartbeat": {
+          "$ref": "#/$defs/Heartbeat"
+        },
+        "memory_alert_percent": {
+          "description": "MemoryAlertPercent is the share of memory still available under which memory.low is raised; default 10.",
+          "type": "integer"
+        },
+        "name": {
+          "description": "Name labels this server in messages. Empty means the hostname.",
+          "type": "string"
+        },
+        "telegram": {
+          "$ref": "#/$defs/Telegram"
+        },
+        "webhooks": {
+          "items": {
+            "$ref": "#/$defs/Webhook"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "Previews": {
+      "additionalProperties": false,
+      "description": "Previews is the template of the ephemeral environments of one app (App.Previews): every pull request that CI built an image for gets an instance, named \"\u003capp\u003e-pr-\u003cn\u003e\", that lives until the pull request is closed, its TTL ends, or newer instances push it out. Instances are never in the apps list: they live in the agent's database. The parent app is the one that holds the template: its image repository, port and runtime settings are what an instance runs. It must be proxied with a container port (its own network), behind the Caddy driver.",
+      "properties": {
+        "domain": {
+          "description": "Domain is the public host pattern, with {pr} for the pull request number, in one label: pr-{pr}-shop.example.com.",
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "env_file": {
+          "description": "EnvFile and Env are the instance's own environment. The parent's env_file and env are never inherited: they hold production secrets.",
+          "type": "string"
+        },
+        "max": {
+          "description": "Max is how many instances of the app exist at once: creating one more removes the oldest. Default 5.",
+          "type": "integer"
+        },
+        "ttl": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "TTL is how long an instance lives after its last deployment. Default 168h."
+        }
+      },
+      "type": "object"
+    },
+    "Proxy": {
+      "additionalProperties": false,
+      "description": "Proxy configures the reverse proxy the agent drives for blue/green apps. With Caddy the agent owns the whole Caddy configuration: use a Caddy dedicated to Keelson. With nginx the agent owns one small file of upstream blocks and reloads nginx; the server blocks stay yours.",
+      "properties": {
+        "access_log": {
+          "description": "AccessLog is a file Caddy writes one JSON line to for every request it serves (absolute path, as Caddy sees it). Caddy rotates it (100 MiB, ten files, ninety days). Empty: no access log.",
+          "type": "string"
+        },
+        "acme_email": {
+          "description": "ACMEEmail is the contact address for the certificate authority.",
+          "type": "string"
+        },
+        "admin": {
+          "description": "Caddy: Admin is its admin API, default http://127.0.0.1:2019.",
+          "type": "string"
+        },
+        "certificates": {
+          "description": "Certificates are certificate and key files Caddy serves as they are, for the names they cover (a Cloudflare origin certificate, say). Caddy asks no certificate authority for a name one of them covers.",
+          "items": {
+            "$ref": "#/$defs/Certificate"
+          },
+          "type": "array"
+        },
+        "client_ip_header": {
+          "description": "ClientIPHeader is the header a trusted proxy puts the client address in, such as CF-Connecting-IP. Default: the last untrusted address of X-Forwarded-For.",
+          "type": "string"
+        },
+        "reload": {
+          "description": "Reload is the command that makes nginx re-read its configuration.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sites": {
+          "description": "Sites are served next to the apps: static files, a fixed upstream or a redirect. See Site.",
+          "items": {
+            "$ref": "#/$defs/Site"
+          },
+          "type": "array"
+        },
+        "test": {
+          "description": "Test is an optional command run before reloading, such as [nginx, -t]. If it fails the previous file is restored and the deployment fails.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tls": {
+          "description": "TLS is \"\" for public certificates (ACME) or \"internal\" for Caddy's own local CA, useful for development.",
+          "type": "string"
+        },
+        "trusted_proxies": {
+          "description": "TrustedProxies are the ranges (CIDR or IP) of proxies in front of this Caddy, such as Cloudflare. Requests from them are believed about the client address; upstreams then receive the real client in X-Forwarded-For.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "description": "Type is \"caddy\" (the default) or \"nginx\".",
+          "type": "string"
+        },
+        "upstreams_file": {
+          "description": "nginx: UpstreamsFile is the file the agent writes, one \"upstream keelson_\u003capp\u003e { server 127.0.0.1:\u003cport\u003e; }\" block per app. Include it from the http block and point proxy_pass at those upstreams.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Registry": {
+      "additionalProperties": false,
+      "description": "Registry holds credentials for pulling private images.",
+      "properties": {
+        "host": {
+          "description": "Host is the registry host, such as ghcr.io.",
+          "type": "string"
+        },
+        "password_file": {
+          "description": "PasswordFile is read at every pull, so a rotated token needs no restart.",
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Release": {
+      "additionalProperties": false,
+      "description": "Release is what runs between \"the new image is pulled\" and \"the new version takes over\": typically a database backup and the schema migration. A failing step stops the deployment before anything serving was touched.",
+      "properties": {
+        "on_rollback": {
+          "description": "OnRollback also runs the steps when the deployment is a rollback. Off by default: re-running migrations from an older image is not what a rollback is for, and a backup before restoring old code is rarely wanted.",
+          "type": "boolean"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ReleaseStep"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ReleaseStep": {
+      "additionalProperties": false,
+      "description": "ReleaseStep is one step of the release phase: an Action (host, container or backup), with its own timeout.",
+      "properties": {
+        "backup": {
+          "type": "string"
+        },
+        "container": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "continue_on_failure": {
+          "description": "ContinueOnFailure logs a failure as a warning and goes on, instead of aborting the deployment.",
+          "type": "boolean"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "host": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "http": {
+          "$ref": "#/$defs/JobHTTP"
+        },
+        "name": {
+          "type": "string"
+        },
+        "timeout": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "Timeout bounds the step; default 10 minutes."
+        }
+      },
+      "type": "object"
+    },
+    "S3Destination": {
+      "additionalProperties": false,
+      "description": "S3Destination is a bucket reached path-style (endpoint/bucket/key).",
+      "properties": {
+        "access_key_id": {
+          "description": "AccessKeyID is an identifier, not a secret; the secret key is read from SecretKeyFile at every run.",
+          "type": "string"
+        },
+        "bucket": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "secret_key_file": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Site": {
+      "additionalProperties": false,
+      "description": "Site is something the Caddy proxy serves that is not an app: a directory of static files, a fixed upstream or a redirect. It is part of the one configuration the agent applies, so it survives every deployment.",
+      "properties": {
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Headers are added to every response (root and upstream sites).",
+          "type": "object"
+        },
+        "hosts": {
+          "description": "Hosts are the public host names. Unique across apps and sites.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "immutable": {
+          "description": "Immutable are path globs answered with a one-year immutable Cache-Control, such as \"/_next/static/*\".",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "index": {
+          "description": "Index is the file served for a directory. Default index.html.",
+          "type": "string"
+        },
+        "not_found": {
+          "description": "NotFound is a file under root served with status 404 for everything that is not found.",
+          "type": "string"
+        },
+        "redirect": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/SiteRedirect"
+            }
+          ],
+          "description": "Redirect answers every request with a redirect."
+        },
+        "root": {
+          "description": "Root serves static files from this absolute path (as Caddy sees it).",
+          "type": "string"
+        },
+        "try_files": {
+          "description": "TryFiles are tried in order for a request path; \"{path}\" stands for the request path. Default {path} {path}.html {path}/ and then 404.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "upstream": {
+          "description": "Upstream is a fixed \"host:port\" reverse proxy target.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "SiteRedirect": {
+      "additionalProperties": false,
+      "description": "SiteRedirect is a redirect site.",
+      "properties": {
+        "code": {
+          "description": "Code is the HTTP status, default 301.",
+          "type": "integer"
+        },
+        "to": {
+          "description": "To is the target URL; {uri}, {path}, {query} and {host} stand for parts of the request.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "description": "Source links an app to the repository it is built from. The agent checks the shape and never acts on it: the dashboard reads it (to deploy when a workflow succeeds, to build a pull request) and writes it. Saving it creates a configuration version and needs no redeploy.",
+      "properties": {
+        "branch": {
+          "description": "Branch is the git branch the app follows.",
+          "type": "string"
+        },
+        "build_on": {
+          "description": "BuildOn lists the events that build the app: push and pull_request. Absent: nothing builds by itself.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "build_server": {
+          "description": "BuildServer is the name of the server (as the dashboard knows it) that builds the image. Absent: the app builds where it runs.",
+          "type": "string"
+        },
+        "deploy_on": {
+          "description": "DeployOn is \"workflow\" (deploy when the workflow named below succeeds) or absent (manual deploys only).",
+          "type": "string"
+        },
+        "previews_workflow": {
+          "description": "PreviewsWorkflow names the workflow whose success on a pull request builds its preview. Absent: off.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repo is \"owner/name\". Its case is kept and matching is case-insensitive.",
+          "type": "string"
+        },
+        "workflow": {
+          "description": "Workflow names the CI workflow whose success deploys the app. Required with deploy_on.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Telegram": {
+      "additionalProperties": false,
+      "description": "Telegram sends events to a chat through a bot.",
+      "properties": {
+        "api_url": {
+          "description": "APIURL is the Bot API server, default https://api.telegram.org. Set it for a self-hosted Bot API server.",
+          "type": "string"
+        },
+        "bot_token_file": {
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Verify": {
+      "additionalProperties": false,
+      "description": "Verify is one page the soak requests on the new container, over 127.0.0.1 on the port it listens on.",
+      "properties": {
+        "path": {
+          "description": "Path starts with \"/\" and may carry a query (\"/products/1?lang=fr\").",
+          "type": "string"
+        },
+        "status": {
+          "description": "Status is the status code the page must answer. 0 (the default) accepts any 2xx; a redirect is an answer, not followed, so a path that redirects needs its code (301, 302...) here.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "Webhook": {
+      "additionalProperties": false,
+      "description": "Webhook receives every event as a JSON POST.",
+      "properties": {
+        "secret_file": {
+          "description": "SecretFile, if set, holds a secret: the body is signed with it (HMAC-SHA256, hex, in X-Keelson-Signature as \"sha256=\u003chex\u003e\").",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "duration": {
+      "anyOf": [
+        {
+          "pattern": "^(0|([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h|d))+)$",
+          "type": "string"
+        },
+        {
+          "const": 0
+        }
+      ],
+      "description": "A length of time as a string with a unit: 90s, 5m, 1h30m, 7d. A bare number is refused, but for 0."
+    },
+    "port": {
+      "anyOf": [
+        {
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "container": {
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "env": {
+              "pattern": "^[A-Z_][A-Z0-9_]*$",
+              "type": "string"
+            },
+            "host": {
+              "items": {
+                "maximum": 65535,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "description": "The container port a proxy forwards to, or a mapping: {container: 3000}, or {host: [3000, 3001], env: PORT} for an app on the host network that alternates between two host ports and is told which to listen on through the variable env."
+    },
+    "size": {
+      "anyOf": [
+        {
+          "pattern": "^([0-9]+)([kKmMgG]?)([iI]?[bB]?)$",
+          "type": "string"
+        },
+        {
+          "minimum": 0,
+          "type": "integer"
+        }
+      ],
+      "description": "An amount of bytes: 512m, 2g, 1GiB, or a number of bytes."
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "apps": {
+      "items": {
+        "$ref": "#/$defs/App"
+      },
+      "type": "array"
+    },
+    "build_limits": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BuildLimits"
+        }
+      ],
+      "description": "BuildLimits are what this server accepts to build for other servers. See BuildLimits."
+    },
+    "databases": {
+      "description": "Databases are existing PostgreSQL servers to back up and restore. Each one with a backups section also appears in Jobs once the file is parsed. The databases the agent creates for apps (App.Database) are listed here too once the file is parsed.",
+      "items": {
+        "$ref": "#/$defs/Database"
+      },
+      "type": "array"
+    },
+    "jobs": {
+      "description": "Jobs run on a schedule.",
+      "items": {
+        "$ref": "#/$defs/Job"
+      },
+      "type": "array"
+    },
+    "managed_postgres": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ManagedPostgres"
+        }
+      ],
+      "description": "ManagedPostgres tunes the managed PostgreSQL (one container per server, a database and a role per app). Optional: the defaults apply, and nothing runs until the first managed database is asked for."
+    },
+    "notifications": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/Notifications"
+        }
+      ],
+      "description": "Notifications is optional: without it the agent only logs."
+    },
+    "proxy": {
+      "$ref": "#/$defs/Proxy"
+    },
+    "registries": {
+      "items": {
+        "$ref": "#/$defs/Registry"
+      },
+      "type": "array"
+    }
+  },
+  "title": "Keelson apps file",
+  "type": "object"
+}

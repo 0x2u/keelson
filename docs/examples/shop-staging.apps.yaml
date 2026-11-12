@@ -1,0 +1,25 @@
+# shop, staging environment, on a server with native Postgres 16 and an nginx that serves other sites.
+#
+# - Same image as production (ghcr.io/acme/shop, private), an isolated database `shop_staging` with its own Postgres role.
+# - Nothing public and nginx untouched: the container uses the host network (Postgres is native), on port 3000 because the image's
+#   HEALTHCHECK hardcodes it; the firewall does not open it. Reach it with:  ssh -L 3000:127.0.0.1:3000 <server>
+# - The .env holds generated secrets and inert third-party values (payment, mail, storage, chat): nothing it does can
+#   reach a real service. Migrations are applied by hand (no migrator image is published).
+registries:
+  - host: ghcr.io
+    username: acme
+    password_file: /etc/keelson/ghcr-token   # a GitHub token with read:packages
+
+apps:
+  - name: shop-staging
+    project: shop
+    environment: staging
+    image: ghcr.io/acme/shop
+    env_file: /var/www/shop-staging/.env
+    env:
+      NODE_ENV: production
+      PORT: "3000"
+    network: host
+    restart: unless-stopped
+    health_timeout: 120s
+    keep_images: 2

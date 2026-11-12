@@ -1,0 +1,117 @@
+# shop, PRODUCTION: a Next.js site with a native PostgreSQL 16, deployed blue/green behind nginx.
+#
+# What the agent does for it:
+#   - builds the image on this server, runs the release steps (environment gate, backup, migration) and switches only when the
+#     health gate passes, rolling back on its own;
+#   - backs the database up before each migration (a `backup` release step);
+#   - runs the site's scheduled HTTP calls (analytics purge, daily report, shipment tracking) as jobs.
+# Outside this file: an external uptime check (the only thing that can say the whole server is down) and nginx's own vhost.
+#
+# Secrets: none in this file. The app's secrets stay in /var/www/shop/.env; the database password and the Telegram bot
+# token are files only the agent can read.
+proxy:
+  type: nginx
+  upstreams_file: /etc/nginx/keelson/upstreams.conf
+  test: [sudo, /usr/sbin/nginx, -t]
+  reload: [sudo, /usr/bin/systemctl, reload, nginx]
+
+notifications:
+  name: shop
+  events: [deployment.failed, deployment.rolled_back, deployment.rollback_failed, deployment.succeeded, app.down, app.recovered, job.failed, job.recovered,
+           job.missed, engine.down, engine.recovered, disk.high, disk.recovered, memory.low, agent.started]
+  disk_alert_percent: 85                      # a small server also holds Docker's images and the builds
+  telegram:
+    bot_token_file: /etc/keelson/telegram-token
+    chat_id: "REPLACE-WITH-TELEGRAM_CHAT_ID-FROM-.env"
+  heartbeat:                                  # the only way to learn that the whole server is gone
+    url: https://hc-ping.com/REPLACE-WITH-YOUR-CHECK-UUID
+    every: 5m
+
+databases:
+  - name: shop
+    host: 127.0.0.1
+    database: shop
+    user: shop                        # the role of DATABASE_URL in .env
+    password_file: /etc/keelson/db-shop
+    backup:
+      schedule: "30 3 * * *"                  # a second copy next to any backup the host makes itself
+      timezone: UTC
+      recipients: ["age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p"]   # age public key (placeholder: use your own)
+      keep: 60                                # nightly copies and the one taken before every migration share this folder
+      keep_days: 30
+      timeout: 30m
+      destination:
+        local: {dir: /var/backups/keelson}    # mkdir -p, chown keelson:keelson, chmod 700
+
+apps:
+  - name: shop
+    project: shop
+    environment: production
+    image: keelson-local/shop         # built on this server, tagged :<commit sha>, never pushed
+    env_file: /var/www/shop/.env
+    env:
+      NODE_ENV: production
+    network: host                             # PostgreSQL is native, on 127.0.0.1
+    host_ports: [3000, 3001]                  # nginx's proxy_pass becomes http://keelson_shop; the agent alternates
+    port_env: PORT
+    health_path: /api/health
+    drain: 10s                                # Cloudflare and Caddy keep connections open a little after the switch
+    stop_timeout: 30                          # seconds before the old container is killed: in-flight requests finish
+    soak: 60s                                 # the new version is watched this long after the switch; a failure puts the old one back
+    verify:                                   # on top of health_path; add a product page and the checkout page you know are stable
+      - {path: /}
+    volumes:
+      - /var/www/shop/shared/public/img:/app/public/img
+      - /var/www/shop/shared/logs:/app/logs
+    restart: unless-stopped
+    keep_images: 3
+    release:
+      steps:
+        - {name: check-env, command: [node, scripts/check-env.js], timeout: 1m}      # refuses to deploy with a missing variable
+        - {name: backup, backup: shop, timeout: 20m}                          # no backup, no migration, nothing switched
+        - {name: migrate, command: [node, node_modules/prisma/build/index.js, migrate, deploy], timeout: 10m}
+    build:
+      dockerfile: Dockerfile.keelson          # the repository's Dockerfile without BuildKit-only syntax
+      network: host                           # `next build` queries the database (page data)
+      memory: 3g                              # measured: a next build peaks at 2.67 GiB; 2g is killed (exit 137)
+      cpus: 1                                 # the site keeps the other core
+      timeout: 30m
+      # Next.js inlines NEXT_PUBLIC_* in the browser bundle at build time, and a build gets nothing from env_file. They are
+      # `args` here: public by design (they are in every visitor's JavaScript), and they appear in this file and in the image
+      # history. Replace the REPLACE_ME values with your own.
+      args:
+        NEXT_PUBLIC_SITE_URL: https://www.example.com
+        NEXT_PUBLIC_APP_URL: https://www.example.com
+        NEXT_PUBLIC_IMAGE_BASE_URL: https://img.example.com
+        NEXT_PUBLIC_ANALYTICS_HOST: https://analytics.example.com
+        NEXT_PUBLIC_ANALYTICS_TOKEN: REPLACE_ME
+        NEXT_PUBLIC_PAYMENT_CLIENT_ID: REPLACE_ME
+        NEXT_PUBLIC_CAPTCHA_SITE_KEY: REPLACE_ME
+        NEXT_PUBLIC_ERROR_TRACKING_DSN: REPLACE_ME
+      # ERROR_TRACKING_AUTH_TOKEN (uploads the source maps) is a secret: set it as a stored variable flagged "build" in the dashboard's
+      # Variables page, never in `args`. Without it the build works and the error tracker gets no source maps.
+
+jobs:
+  # Schedules are in UTC unless a `timezone` is set. The URL is the public one, so a
+  # run proves the whole path (Cloudflare, nginx, the app) and never depends on which of the two ports is live.
+  - name: analytics-purge
+    schedule: "0 4 * * *"
+    http:
+      url: https://www.example.com/api/cron/analytics-purge
+      method: POST
+      bearer: {app: shop, env: CRON_SECRET}
+    timeout: 1m
+  - name: daily-report
+    schedule: "0 7 * * *"
+    http:
+      url: https://www.example.com/api/cron/daily-report
+      method: POST
+      bearer: {app: shop, env: CRON_SECRET}
+    timeout: 1m
+  - name: track-shipments
+    schedule: "0 6-21 * * *"
+    http:
+      url: https://www.example.com/api/internal/track-shipments
+      bearer: {app: shop, env: CRON_SECRET}
+    timeout: 1m
+    alert_after: 2

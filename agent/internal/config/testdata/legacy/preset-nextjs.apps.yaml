@@ -1,0 +1,29 @@
+# A Next.js app Keelson builds on this server WITHOUT a Dockerfile in the repository (docs/reference/builds.md, "Build presets: no Dockerfile in the repository").
+# The agent writes the Dockerfile itself: a multi-stage image (node:<version>-alpine, then a non-root runtime stage) with
+# a HEALTHCHECK. Your repository needs a package.json with a "build" script and, ideally, a lockfile: pnpm-lock.yaml,
+# yarn.lock or package-lock.json tells which package manager installs the dependencies.
+#
+# A preset is chosen here, never guessed from the repository. It cannot be combined with `dockerfile:` or `target:`.
+proxy:
+  acme_email: ops@example.com
+
+apps:
+  - name: web
+    project: web
+    environment: production
+    image: ghcr.io/acme/web             # the build is tagged ghcr.io/acme/web:<commit sha> locally; nothing is pushed
+    port: 3000                        # the port the image listens on: it sets PORT and HOSTNAME=0.0.0.0
+    health_path: /                    # the image's HEALTHCHECK follows it
+    domains: [web.example.com]
+    build:
+      preset: nextjs
+      # Everything below is optional; the defaults are shown in comments.
+      # install: pnpm install --frozen-lockfile  # default by lockfile: pnpm / yarn --frozen-lockfile / npm ci / npm install
+      # build_command: pnpm run build            # default: <package manager> run build
+      # start: pnpm exec next start -p "$PORT"   # default: next start -p $PORT through the package manager
+      # node: "22"                               # Node.js major version (default 22, 18 or later)
+      # standalone: false                        # true: ship .next/standalone and run `node server.js` (needs
+      #                                          # output: "standalone" in next.config): a much smaller image
+      # context: apps/web                        # a subdirectory of the repository (default .)
+      args:
+        NEXT_PUBLIC_API_URL: https://api.example.com   # build arguments are visible in the image history: no secret here

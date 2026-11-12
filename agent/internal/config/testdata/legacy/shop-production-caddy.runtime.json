@@ -1,0 +1,387 @@
+{
+  "dump_format": 1,
+  "apps": [
+    {
+      "name": "shop",
+      "project": "shop",
+      "effective_project": "shop",
+      "environment": "production",
+      "image": "keelson-local/shop",
+      "env_file": "/var/www/shop/.env",
+      "env": {
+        "NODE_ENV": "<hidden>"
+      },
+      "command": [],
+      "volumes": [
+        "/var/www/shop/shared/public/img:/app/public/img",
+        "/var/www/shop/shared/logs:/app/logs"
+      ],
+      "network": "host",
+      "restart_policy": "unless-stopped",
+      "stop_timeout_seconds": 30,
+      "health_timeout_seconds": 90,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 10,
+      "soak_seconds": 60,
+      "verify": [
+        {
+          "path": "/",
+          "status": 0
+        }
+      ],
+      "keep_images": 3,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": true,
+        "domains": [
+          "www.example.com"
+        ],
+        "published_ports": [],
+        "proxy_container_port": 0,
+        "host_ports": [
+          3000,
+          3001
+        ],
+        "host_port_env": "PORT",
+        "health_path": "/api/health"
+      },
+      "release": {
+        "on_rollback": false,
+        "steps": [
+          {
+            "name": "check-env",
+            "kind": "container",
+            "argv": [
+              "node",
+              "scripts/check-env.js"
+            ],
+            "dir": "",
+            "image": "",
+            "database": "",
+            "timeout_seconds": 60,
+            "continue_on_failure": false
+          },
+          {
+            "name": "backup",
+            "kind": "backup",
+            "argv": [],
+            "dir": "",
+            "image": "",
+            "database": "shop",
+            "timeout_seconds": 1200,
+            "continue_on_failure": false
+          },
+          {
+            "name": "migrate",
+            "kind": "container",
+            "argv": [
+              "node",
+              "node_modules/prisma/build/index.js",
+              "migrate",
+              "deploy"
+            ],
+            "dir": "",
+            "image": "",
+            "database": "",
+            "timeout_seconds": 600,
+            "continue_on_failure": false
+          }
+        ]
+      },
+      "build": {
+        "preset": "",
+        "dockerfile": "Dockerfile.keelson",
+        "install": "",
+        "build_command": "",
+        "start": "",
+        "output_dir": "",
+        "node": "",
+        "spa": null,
+        "standalone": false,
+        "context": ".",
+        "target": "",
+        "args": {
+          "NEXT_PUBLIC_ANALYTICS_HOST": "https://analytics.example.com",
+          "NEXT_PUBLIC_ANALYTICS_TOKEN": "<hidden>",
+          "NEXT_PUBLIC_APP_URL": "https://www.example.com",
+          "NEXT_PUBLIC_CAPTCHA_SITE_KEY": "<hidden>",
+          "NEXT_PUBLIC_ERROR_TRACKING_DSN": "REPLACE_ME",
+          "NEXT_PUBLIC_IMAGE_BASE_URL": "https://img.example.com",
+          "NEXT_PUBLIC_PAYMENT_CLIENT_ID": "REPLACE_ME",
+          "NEXT_PUBLIC_SITE_URL": "https://www.example.com"
+        },
+        "timeout_seconds": 1800,
+        "memory_bytes": 3221225472,
+        "cpus": 1,
+        "max_source_bytes": 536870912,
+        "network": "host",
+        "effective_network": "host",
+        "database": false,
+        "platform": "",
+        "builder_only": false,
+        "source_hosts": [
+          "api.github.com",
+          "codeload.github.com"
+        ]
+      },
+      "extra_networks": [],
+      "managed_databases": []
+    }
+  ],
+  "jobs": [
+    {
+      "name": "analytics-purge",
+      "project": "",
+      "kind": "http",
+      "synthesized": false,
+      "database": "",
+      "schedule": "0 4 * * *",
+      "timezone": "UTC",
+      "timeout_seconds": 60,
+      "alert_after": 1,
+      "realert_after_seconds": 86400,
+      "catch_up": false,
+      "paused": false,
+      "argv": [],
+      "dir": "",
+      "container_app": "",
+      "http": {
+        "url": "https://www.example.com/api/cron/analytics-purge",
+        "method": "POST",
+        "headers": {},
+        "body": "",
+        "bearer": {
+          "file": "",
+          "app": "shop",
+          "env": "CRON_SECRET"
+        },
+        "expect_status": []
+      }
+    },
+    {
+      "name": "backup-shop",
+      "project": "",
+      "kind": "backup",
+      "synthesized": true,
+      "database": "shop",
+      "schedule": "30 3 * * *",
+      "timezone": "UTC",
+      "timeout_seconds": 1800,
+      "alert_after": 1,
+      "realert_after_seconds": 86400,
+      "catch_up": false,
+      "paused": false,
+      "argv": [],
+      "dir": "",
+      "container_app": "",
+      "http": null
+    },
+    {
+      "name": "daily-report",
+      "project": "",
+      "kind": "http",
+      "synthesized": false,
+      "database": "",
+      "schedule": "0 7 * * *",
+      "timezone": "UTC",
+      "timeout_seconds": 60,
+      "alert_after": 1,
+      "realert_after_seconds": 86400,
+      "catch_up": false,
+      "paused": false,
+      "argv": [],
+      "dir": "",
+      "container_app": "",
+      "http": {
+        "url": "https://www.example.com/api/cron/daily-report",
+        "method": "POST",
+        "headers": {},
+        "body": "",
+        "bearer": {
+          "file": "",
+          "app": "shop",
+          "env": "CRON_SECRET"
+        },
+        "expect_status": []
+      }
+    },
+    {
+      "name": "track-shipments",
+      "project": "",
+      "kind": "http",
+      "synthesized": false,
+      "database": "",
+      "schedule": "0 6-21 * * *",
+      "timezone": "UTC",
+      "timeout_seconds": 60,
+      "alert_after": 2,
+      "realert_after_seconds": 86400,
+      "catch_up": false,
+      "paused": false,
+      "argv": [],
+      "dir": "",
+      "container_app": "",
+      "http": {
+        "url": "https://www.example.com/api/internal/track-shipments",
+        "method": "GET",
+        "headers": {},
+        "body": "",
+        "bearer": {
+          "file": "",
+          "app": "shop",
+          "env": "CRON_SECRET"
+        },
+        "expect_status": []
+      }
+    }
+  ],
+  "databases": [
+    {
+      "name": "shop",
+      "project": "",
+      "engine": "postgres",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "database": "shop",
+      "user": "shop",
+      "password_file": "/etc/keelson/db-shop",
+      "ssl_mode": "",
+      "version": 0,
+      "network": "host",
+      "managed": false,
+      "app": "",
+      "env_key": "",
+      "backup": {
+        "schedule": "30 3 * * *",
+        "timezone": "UTC",
+        "recipients": [
+          "age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p"
+        ],
+        "keep": 60,
+        "keep_days": 30,
+        "keep_pre_deploy": 5,
+        "timeout_seconds": 1800,
+        "alert_after": 1,
+        "paused": false,
+        "destinations": [
+          {
+            "kind": "local",
+            "dir": "/var/backups/keelson",
+            "endpoint": "",
+            "region": "",
+            "bucket": "",
+            "prefix": "",
+            "access_key_id": "",
+            "secret_key_file": ""
+          }
+        ]
+      }
+    }
+  ],
+  "previews": [],
+  "registries": [],
+  "proxy": {
+    "type": "caddy",
+    "admin": "http://127.0.0.1:2019",
+    "acme_email": "",
+    "tls": "",
+    "trusted_proxies": [
+      "173.245.48.0/20",
+      "103.21.244.0/22",
+      "103.22.200.0/22",
+      "103.31.4.0/22",
+      "141.101.64.0/18",
+      "108.162.192.0/18",
+      "190.93.240.0/20",
+      "188.114.96.0/20",
+      "197.234.240.0/22",
+      "198.41.128.0/17",
+      "162.158.0.0/15",
+      "104.16.0.0/13",
+      "104.24.0.0/14",
+      "172.64.0.0/13",
+      "131.0.72.0/22",
+      "2400:cb00::/32",
+      "2606:4700::/32",
+      "2803:f800::/32",
+      "2405:b500::/32",
+      "2405:8100::/32",
+      "2a06:98c0::/29",
+      "2c0f:f248::/32"
+    ],
+    "client_ip_header": "CF-Connecting-IP",
+    "access_log": "/data/access.log",
+    "certificates": [
+      {
+        "cert_file": "/etc/ssl/cloudflare/example.com.pem",
+        "key_file": "/etc/ssl/cloudflare/example.com.key"
+      }
+    ],
+    "sites": [
+      {
+        "kind": "redirect",
+        "hosts": [
+          "example.com"
+        ],
+        "root": "",
+        "not_found": "",
+        "immutable": [],
+        "try_files": [],
+        "index": "",
+        "upstream": "",
+        "redirect": {
+          "to": "https://www.example.com{uri}",
+          "code": 301
+        },
+        "headers": {}
+      }
+    ],
+    "upstreams_file": "",
+    "test": [],
+    "reload": []
+  },
+  "notifications": {
+    "name": "shop",
+    "events": [
+      "agent.started",
+      "app.down",
+      "app.recovered",
+      "deployment.failed",
+      "deployment.rollback_failed",
+      "deployment.rolled_back",
+      "deployment.succeeded",
+      "disk.high",
+      "disk.recovered",
+      "engine.down",
+      "engine.recovered",
+      "job.failed",
+      "job.missed",
+      "job.recovered",
+      "memory.low"
+    ],
+    "webhooks": [],
+    "telegram": {
+      "bot_token_file": "/etc/keelson/telegram-token",
+      "chat_id": "REPLACE-WITH-TELEGRAM_CHAT_ID-FROM-.env",
+      "api_url": "https://api.telegram.org"
+    },
+    "heartbeat": {
+      "url": "<hidden>",
+      "every_seconds": 300
+    },
+    "disk_alert_percent": 85,
+    "memory_alert_percent": 10,
+    "alert_cooldown_seconds": 300
+  },
+  "managed_postgres": {
+    "version": 16,
+    "port": 5442,
+    "memory_bytes": 536870912,
+    "image": "postgres:16-alpine"
+  }
+}

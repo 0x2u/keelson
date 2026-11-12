@@ -1,0 +1,56 @@
+{
+  "applied_hash": "<hash>",
+  "config_hash": "<hash>",
+  "content": "# The project file of the capture: an app, its managed database, a job and a preview template, all of the project \"blog\".\n# It is the one file that still has the legacy spelling (a top-level `previews`, `run` for a host job), so that the agent reports\n# deprecations for it and the dashboard's handling of them is pinned to what the agent says.\napps:\n  - name: blog\n    image: ghcr.io/acme/blog\n    environment: staging\n    domains: [blog.example.com]\n    port: 2368\n    soak: 0s\n    database:\n      password_file: \"/work/data/postgres/roles/blog\"\npreviews:\n  - app: blog\n    domain: \"pr-{pr}-blog.example.com\"\n    env: {NODE_ENV: \"<hidden>\"}\n    ttl: 24h\n    max: 3\njobs:\n  - {name: blog-reindex, schedule: \"@hourly\", container: {app: blog, command: [reindex]}}\n  - {name: blog-prune, schedule: \"@weekly\", run: [/srv/prune.sh]}\n",
+  "hash": "<hash>",
+  "model": {
+    "apps": [
+      {
+        "database": {
+          "password_file": "/work/data/postgres/roles/blog"
+        },
+        "domains": [
+          "blog.example.com"
+        ],
+        "environment": "staging",
+        "image": "ghcr.io/acme/blog",
+        "name": "blog",
+        "port": 2368,
+        "previews": {
+          "domain": "pr-{pr}-blog.example.com",
+          "env": {
+            "NODE_ENV": "<hidden>"
+          },
+          "max": 3,
+          "ttl": "24h"
+        },
+        "project": "blog",
+        "soak": "0s"
+      }
+    ],
+    "jobs": [
+      {
+        "container": {
+          "app": "blog",
+          "command": [
+            "reindex"
+          ]
+        },
+        "name": "blog-reindex",
+        "project": "blog",
+        "schedule": "@hourly"
+      },
+      {
+        "host": [
+          "/srv/prune.sh"
+        ],
+        "name": "blog-prune",
+        "project": "blog",
+        "schedule": "@weekly"
+      }
+    ]
+  },
+  "modified_at": "2026-01-01T00:00:00Z",
+  "path": "projects.d/blog.yaml",
+  "project": "blog"
+}

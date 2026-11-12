@@ -1,0 +1,61 @@
+# web-demo (github.com/acme/web-demo): a small Next.js + PostgreSQL site made to be deployed, as it runs on a server with
+# Caddy driven by the agent, Cloudflare in front and a managed PostgreSQL, at https://staging.example.com.
+#
+# What it exercises: a build that reads its database (build.database), release steps (environment gate, migration), a health gate
+# that needs the database, blue/green behind Caddy, a job, build arguments, stored variables, and (below) pull-request previews.
+#
+# This is the part to ADD to the agent's apps file: its `proxy:` section (sites, trusted Cloudflare ranges) stays as it is. The
+# wizard writes this app for you, and adds the `managed: true` database entry when it
+# creates the PostgreSQL. To back up before each migration, add
+# `{name: backup, backup: web-demo, timeout: 10m}` between check-env and migrate once that entry exists.
+#
+# Variables are not in this file: DATABASE_URL (created by the managed PostgreSQL) and CRON_SECRET (16 characters at least, the
+# environment gate refuses less) are stored on the app's Variables page, write-only.
+proxy:
+  type: caddy
+apps:
+  - name: web-demo
+    project: web-demo
+    environment: production
+    image: keelson-local/web-demo # built on this server, tagged :<commit sha>, never pushed
+    port: 3000
+    domains: [staging.example.com] # DNS exists (proxied by Cloudflare); Caddy obtains the certificate at the first deployment
+    health_path: /api/health # 200 only when the database answers
+    restart: unless-stopped
+    keep_images: 3
+    env:
+      NODE_ENV: production
+      DEMO_MESSAGE: Deployed by Keelson # change it and redeploy: no build needed
+    release:
+      steps:
+        - {name: check-env, container: {command: [node, scripts/check-env.js]}, timeout: 1m}
+        - {name: migrate, container: {command: [node, node_modules/prisma/build/index.js, migrate, deploy]}, timeout: 10m}
+    build:
+      dockerfile: Dockerfile.keelson # the classic builder: Dockerfile (BuildKit cache mount) is not used
+      database: true # the managed database is new: the Dockerfile creates its tables before `next build`
+      memory: 2g
+      cpus: 1
+      timeout: 20m
+      args:
+        NEXT_PUBLIC_SITE_NAME: Web demo
+        NEXT_PUBLIC_APP_VERSION: demo
+jobs:
+  - name: prune-guestbook
+    schedule: "0 4 * * *"
+    http:
+      url: https://staging.example.com/api/cron
+      method: POST
+      bearer: {app: web-demo, env: CRON_SECRET}
+    timeout: 1m
+
+# Pull-request previews (left off: a preview never gets a database, and this app's health gate needs one).
+# To try them: create a scratch database on the managed instance, store its URL in the previews' own env file, add a wildcard
+# record `*.example.com` (proxied) or one record per pull request, then uncomment, and turn on "build previews" on the app's
+# Source page. A preview is https://pr-<n>-web-demo.example.com (one label: Cloudflare's certificate covers one level).
+#
+# previews:
+#   - app: web-demo
+#     domain: pr-{pr}-web-demo.example.com
+#     env_file: /etc/keelson/web-demo-preview.env     # DATABASE_URL of the scratch database, CRON_SECRET
+#     ttl: 72h
+#     max: 3

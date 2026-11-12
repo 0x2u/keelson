@@ -1,0 +1,28 @@
+# The project file of the coverage fixture: an app, its managed database (a second one for the same app), a job and a
+# preview template, all of the project "blog".
+apps:
+  - name: blog
+    image: ghcr.io/acme/blog
+    environment: staging
+    domains: [blog.example.com]
+    port: 2368
+    soak: 0s
+previews:
+  - app: blog
+    domain: "pr-{pr}-blog.example.com"
+    env: {NODE_ENV: staging}
+    ttl: 24h
+    max: 3
+databases:
+  - name: blog
+    managed: true
+    app: blog
+    env_key: DATABASE_URL
+    host: keelson-postgres
+    port: 5432
+    database: blog
+    user: blog
+    network: keelson
+    password_file: /var/lib/keelson/postgres/roles/blog
+jobs:
+  - {name: blog-reindex, schedule: "@hourly", container: {app: blog, command: [reindex]}}

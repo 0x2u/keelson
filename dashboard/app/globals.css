@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens (see docs/design.md). Semantic names, one light and one dark value each.
+ * Status colours come in a text shade that passes WCAG AA on its theme's background.
+ */
+:root {
+  --radius: 0.625rem;
+
+  /*
+   * The brand: the cyan of the keel in the mark, and the ink of its frames. --brand is a fill (the mark, a progress bar,
+   * the primary button of the dark theme); --brand-text is the shade that passes AA as text or as a focus ring on the
+   * theme's background. Neutrals lean towards the ink, so no surface is a plain grey.
+   */
+  --brand: #4dd2fd;
+  --brand-foreground: #04202e;
+  --brand-text: #0b7fa3;
+
+  --background: #ffffff;
+  --foreground: #0b1b2b;
+  --card: #ffffff;
+  --card-foreground: #0b1b2b;
+  --popover: #ffffff;
+  --popover-foreground: #0b1b2b;
+  --primary: #0b1b2b;
+  --primary-foreground: #f7f9fb;
+  --secondary: #f1f4f7;
+  --secondary-foreground: #14273a;
+  --muted: #f1f4f7;
+  --muted-foreground: #55677a;
+  --accent: #e9eef3;
+  --accent-foreground: #0b1b2b;
+  --border: #dfe5eb;
+  --input: #c9d2dc;
+  --ring: #0b7fa3;
+
+  --success: #15803d;
+  --warning: #b45309;
+  --destructive: #c81e1e;
+  --info: #1d4ed8;
+
+  /* Text on the tinted background of a badge: the tint costs contrast, so the light theme needs a deeper shade (>= 5:1 on white and on --muted). */
+  --success-text: #136c34;
+  --warning-text: #9a4507;
+  --destructive-text: #b01a1a;
+  --info-text: #1c45c0;
+
+  --sidebar: #f7f9fb;
+  --sidebar-foreground: #3a4a5b;
+  --sidebar-primary: #0b1b2b;
+  --sidebar-primary-foreground: #f7f9fb;
+  --sidebar-accent: #e7edf2;
+  --sidebar-accent-foreground: #0b1b2b;
+  --sidebar-border: #dfe5eb;
+  --sidebar-ring: #0b7fa3;
+}
+
+.dark {
+  --background: #070f18;
+  --foreground: #e8eef4;
+  --card: #0c1722;
+  --card-foreground: #e8eef4;
+  --popover: #0f1c29;
+  --popover-foreground: #e8eef4;
+  --primary: #4dd2fd;
+  --primary-foreground: #04202e;
+  --secondary: #132130;
+  --secondary-foreground: #e8eef4;
+  --muted: #0f1b28;
+  --muted-foreground: #93a5b7;
+  --accent: #162637;
+  --accent-foreground: #e8eef4;
+  --border: #1d2d3e;
+  --input: #2a3d51;
+  --ring: #4dd2fd;
+
+  --brand-text: #4dd2fd;
+
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --destructive: #f87171;
+  --info: #7aa2ff;
+
+  --success-text: var(--success);
+  --warning-text: var(--warning);
+  --destructive-text: var(--destructive);
+  --info-text: var(--info);
+
+  --sidebar: #050c14;
+  --sidebar-foreground: #b9c7d5;
+  --sidebar-primary: #4dd2fd;
+  --sidebar-primary-foreground: #04202e;
+  --sidebar-accent: #12202e;
+  --sidebar-accent-foreground: #e8eef4;
+  --sidebar-border: #172636;
+  --sidebar-ring: #4dd2fd;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: var(--font-sora), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-info: var(--info);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-text: var(--brand-text);
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-destructive-text: var(--destructive-text);
+  --color-info-text: var(--info-text);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--ring) 30%, transparent);
+  }
+  /* Numbers line up in tables and metrics. */
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

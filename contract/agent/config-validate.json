@@ -1,0 +1,31 @@
+{
+  "issues": [
+    {
+      "code": "deprecated",
+      "file": "apps.yaml",
+      "line": 65,
+      "message": "run is deprecated: use host",
+      "path": "apps[shop].release.steps[warm].run",
+      "severity": "warning"
+    },
+    {
+      "code": "deprecated",
+      "file": "projects.d/blog.yaml",
+      "line": 21,
+      "message": "run is deprecated: use host",
+      "path": "jobs[blog-prune].run",
+      "project": "blog",
+      "severity": "warning"
+    },
+    {
+      "code": "deprecated",
+      "file": "projects.d/blog.yaml",
+      "line": 14,
+      "message": "the top-level previews section is deprecated: previews are a key of their app, apps[blog].previews (without app)",
+      "path": "apps[blog].previews",
+      "project": "blog",
+      "severity": "warning"
+    }
+  ],
+  "ok": true
+}

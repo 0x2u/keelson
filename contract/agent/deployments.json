@@ -1,0 +1,51 @@
+[
+  {
+    "app": "worker",
+    "error": "docker: status 404: manifest for ghcr.io/acme/worker:missing not found: manifest unknown: manifest unknown",
+    "finished_at": "2026-01-01T00:00:00Z",
+    "id": "<id>",
+    "phases": [
+      {
+        "finished_at": "2026-01-01T00:00:00Z",
+        "name": "release",
+        "started_at": "2026-01-01T00:00:00Z",
+        "status": "failed"
+      }
+    ],
+    "ref": "ghcr.io/acme/worker:missing",
+    "serving_ref": "ghcr.io/acme/worker:latest",
+    "started_at": "2026-01-01T00:00:00Z",
+    "status": "failed",
+    "trigger": "api"
+  },
+  {
+    "app": "worker",
+    "finished_at": "2026-01-01T00:00:00Z",
+    "id": "<id>",
+    "phases": [
+      {
+        "finished_at": "2026-01-01T00:00:00Z",
+        "name": "release",
+        "started_at": "2026-01-01T00:00:00Z",
+        "status": "done"
+      },
+      {
+        "finished_at": "2026-01-01T00:00:00Z",
+        "name": "switch",
+        "started_at": "2026-01-01T00:00:00Z",
+        "status": "done"
+      },
+      {
+        "finished_at": "2026-01-01T00:00:00Z",
+        "name": "live",
+        "started_at": "2026-01-01T00:00:00Z",
+        "status": "done"
+      }
+    ],
+    "ref": "ghcr.io/acme/worker:latest",
+    "serving_ref": "ghcr.io/acme/worker:latest",
+    "started_at": "2026-01-01T00:00:00Z",
+    "status": "succeeded",
+    "trigger": "api"
+  }
+]

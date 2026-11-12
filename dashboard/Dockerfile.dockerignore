@@ -1,0 +1,15 @@
+# Used with the repository root as the build context: patterns are relative to it.
+.git
+**/node_modules
+dashboard/.next
+dashboard/data
+dashboard/.env
+dashboard/.env.*
+!dashboard/.env.example
+dashboard/node_modules
+**/*.tsbuildinfo
+dashboard/tests
+dashboard/agent-bin
+agent/bin
+docs
+action

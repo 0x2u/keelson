@@ -1,0 +1,80 @@
+name: Keelson deploy
+description: >-
+  Deploy an image that CI has already pushed to a registry through a Keelson
+  agent: sends a signed deploy request, follows the deployment live, and fails
+  the job unless the new version became healthy.
+author: 0x2u
+branding:
+  icon: upload-cloud
+  color: blue
+
+inputs:
+  url:
+    description: Base URL of the Keelson agent, for example https://agent.example.com
+    required: true
+  app:
+    description: Name of the app in the agent's apps file.
+    required: true
+  tag:
+    description: Image tag to deploy. Defaults to the commit SHA. Ignored when digest is set.
+    required: false
+    default: ${{ github.sha }}
+  digest:
+    description: Image digest (sha256:...) to deploy instead of a tag.
+    required: false
+    default: ""
+  deploy-secret:
+    description: The agent's deploy secret, used to sign the request. Pass it from a repository secret.
+    required: true
+  read-token:
+    description: The agent's API token, used to follow the deployment. Pass it from a repository secret.
+    required: true
+  timeout:
+    description: Seconds to wait for the deployment to finish before failing the job.
+    required: false
+    default: "600"
+  ca-cert:
+    description: PEM certificate of the CA that signed the agent's TLS certificate, if it is not a public one.
+    required: false
+    default: ""
+  client-cert:
+    description: PEM client certificate, when the agent requires mutual TLS.
+    required: false
+    default: ""
+  client-key:
+    description: PEM private key of the client certificate.
+    required: false
+    default: ""
+  allow-insecure-http:
+    description: Accept a plain http:// URL. The read token would then travel unencrypted; for local testing only.
+    required: false
+    default: "false"
+
+outputs:
+  deployment-id:
+    description: ID of the deployment the agent started.
+    value: ${{ steps.deploy.outputs.deployment-id }}
+  status:
+    description: Final status, one of succeeded, failed, rolled_back, rollback_failed.
+    value: ${{ steps.deploy.outputs.status }}
+
+runs:
+  using: composite
+  steps:
+    - id: deploy
+      shell: bash
+      # Inputs go through the environment, never interpolated into the script:
+      # a tag or secret cannot inject shell code.
+      env:
+        KEELSON_URL: ${{ inputs.url }}
+        KEELSON_APP: ${{ inputs.app }}
+        KEELSON_TAG: ${{ inputs.tag }}
+        KEELSON_DIGEST: ${{ inputs.digest }}
+        KEELSON_DEPLOY_SECRET: ${{ inputs.deploy-secret }}
+        KEELSON_READ_TOKEN: ${{ inputs.read-token }}
+        KEELSON_TIMEOUT: ${{ inputs.timeout }}
+        KEELSON_CA_CERT: ${{ inputs.ca-cert }}
+        KEELSON_CLIENT_CERT: ${{ inputs.client-cert }}
+        KEELSON_CLIENT_KEY: ${{ inputs.client-key }}
+        KEELSON_ALLOW_INSECURE_HTTP: ${{ inputs.allow-insecure-http }}
+      run: ${{ github.action_path }}/deploy.sh

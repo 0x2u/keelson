@@ -1,0 +1,153 @@
+# Legacy-schema coverage that no docs example has, so that the baseline of the schema change also pins the managed
+# PostgreSQL, the backup destinations, the three kinds of job, every proxy site kind, the notification channels and a
+# project file. It is a test fixture, not an example: it is not meant to be deployed.
+postgres: {version: 17, port: 5443, memory: 1g}
+
+registries:
+  - {host: ghcr.io, username: bot, password_file: /etc/keelson/ghcr-token}
+  - {host: registry.example.com, username: ci, password_file: /etc/keelson/example-registry}
+
+proxy:
+  acme_email: ops@example.com
+  tls: internal
+  access_log: /var/log/caddy/access.log
+  trusted_proxies: [103.21.244.0/22, 2400:cb00::/32]
+  client_ip_header: CF-Connecting-IP
+  certificates:
+    - {cert_file: /etc/ssl/origin.pem, key_file: /etc/ssl/origin.key}
+  sites:
+    - hosts: [Static.Example.com]
+      root: /var/www/static
+      not_found: 404.html
+      immutable: ["/_next/static/*"]
+      headers: {X-Frame-Options: DENY}
+    - hosts: [old.example.com]
+      redirect: {to: "https://new.example.com{uri}"}
+    - hosts: [api.example.com]
+      upstream: "127.0.0.1:9000"
+
+notifications:
+  name: coverage
+  events: [deployment.failed, job.failed, disk.high, job.missed]
+  webhooks:
+    - {url: "https://hooks.example.com/abc?token=SECRET", secret_file: /etc/keelson/hook-secret}
+  telegram: {bot_token_file: /etc/keelson/telegram-token, chat_id: "-100123"}
+  heartbeat: {url: "https://hc-ping.com/00000000-0000-0000-0000-000000000000", every: 10m}
+  disk_alert_percent: 90
+  memory_alert_percent: 8
+  alert_cooldown: 0s
+
+apps:
+  # A blue/green app with a managed database, a backup release step, a host step and a container step with its own image.
+  - name: shop
+    image: ghcr.io/acme/shop
+    env: {NODE_ENV: production, SESSION_SECRET: not-a-real-secret}
+    domains: [Shop.Example.com, www.shop.example.com]
+    port: 3000
+    health_path: /healthz
+    restart: unless-stopped
+    stop_timeout: 45
+    health_timeout: 2m
+    stable_after: 20s
+    drain: 0s
+    soak: 45s
+    verify:
+      - {path: /}
+      - {path: /login, status: 302}
+    keep_images: 5
+    log: {driver: local, max_size: 50m, max_file: 5}
+    release:
+      on_rollback: true
+      steps:
+        - {name: backup, backup: shop}
+        - {name: migrate, command: [node, migrate.js, --token, not-a-real-token], image: ghcr.io/acme/shop-tools, timeout: 5m}
+        - {name: warm, run: [/srv/warm.sh, API_KEY=not-a-real-key], dir: /srv, continue_on_failure: true}
+    build:
+      dockerfile: Dockerfile.keelson
+      context: web
+      target: runtime
+      args: {NODE_ENV: production, NPM_TOKEN: not-a-real-token}
+      timeout: 20m
+      memory: 3g
+      cpus: 1.5
+      max_source: 1g
+      database: true
+      platform: linux/amd64
+      source_hosts: [github.example.com]
+  # A plain app with published ports, volumes and a command, no routing.
+  - name: worker
+    image: ghcr.io/acme/worker
+    command: [worker, --queue, default]
+    ports: ["127.0.0.1:9000:9000", "5353:5353/udp"]
+    volumes: ["/srv/worker:/data:ro"]
+    network: keelson-net
+    restart: always
+    stop_timeout: 5
+  # A host-network app switched blue/green on two ports, with a variable of its own for the port.
+  - name: legacy
+    image: keelson-local/legacy
+    network: host
+    domains: [legacy.example.com]
+    host_ports: [4000, 4001]
+    port_env: LISTEN_PORT
+    restart: "no"
+  # A builder.
+  - name: legacy-build
+    image: keelson-local/legacy
+    environment: build
+    build: {only: true, memory: 4g, cpus: 4, timeout: 30m, network: host}
+
+jobs:
+  - {name: purge, schedule: "@daily", run: [/srv/purge.sh, --older-than, 30d], dir: /srv, timezone: Europe/Paris, timeout: 10m, alert_after: 3, realert_after: 0s, catch_up: true}
+  - {name: warm-cache, schedule: "*/15 * * * *", container: {app: shop, command: [node, warm.js]}, paused: true}
+  - name: ping
+    schedule: "@every 10m"
+    http:
+      url: "https://shop.example.com/api/ping?key=SECRET"
+      method: post
+      headers: {X-Source: keelson}
+      body: '{"hello":"world"}'
+      bearer: {file: /etc/keelson/ping-token}
+      expect_status: [200, 204]
+    realert_after: 12h
+
+databases:
+  # An existing PostgreSQL server, backed up to two places.
+  - name: ledger
+    host: db.internal
+    port: 5433
+    database: ledger
+    user: app
+    password_file: /etc/keelson/db-ledger
+    ssl_mode: require
+    version: 16
+    network: keelson-net
+    backup:
+      schedule: "30 3 * * *"
+      timezone: Europe/Paris
+      recipients: ["age1wn7dkjxred46y40slmr4jpdxm30958ehls6lmr58d6tv7xe05ggqyfu7qk"]
+      keep: 30
+      keep_days: 90
+      keep_pre_deploy: 2
+      timeout: 1h
+      alert_after: 2
+      paused: true
+      destinations:
+        - local: {dir: /var/backups/keelson}
+        - s3: {endpoint: "https://s3.eu-west-3.amazonaws.com", region: eu-west-3, bucket: acme-backups, prefix: ledger, access_key_id: AKIAEXAMPLE, secret_key_file: /etc/keelson/s3-secret}
+  # The database the agent created for shop, backed up to one directory.
+  - name: shop
+    managed: true
+    app: shop
+    env_key: DATABASE_URL
+    engine: postgres
+    host: keelson-postgres
+    port: 5432
+    database: shop
+    user: shop
+    network: keelson
+    password_file: /var/lib/keelson/postgres/roles/shop
+    backup:
+      schedule: "0 3 * * *"
+      recipients: ["age1wn7dkjxred46y40slmr4jpdxm30958ehls6lmr58d6tv7xe05ggqyfu7qk"]
+      destination: {local: {dir: /var/lib/keelson/backups}}

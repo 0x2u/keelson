@@ -1,0 +1,97 @@
+{
+  "dump_format": 1,
+  "apps": [
+    {
+      "name": "api",
+      "project": "",
+      "effective_project": "api",
+      "environment": "",
+      "image": "ghcr.io/acme/api",
+      "env_file": "",
+      "env": {},
+      "command": [],
+      "volumes": [],
+      "network": "",
+      "restart_policy": "unless-stopped",
+      "stop_timeout_seconds": 10,
+      "health_timeout_seconds": 90,
+      "stable_after_seconds": 10,
+      "stable_after_explicit": false,
+      "drain_seconds": 5,
+      "soak_seconds": 30,
+      "verify": [],
+      "keep_images": 3,
+      "log": {
+        "driver": "json-file",
+        "max_size_bytes": 10485760,
+        "max_file": 3
+      },
+      "routing": {
+        "proxied": true,
+        "domains": [
+          "api.example.com"
+        ],
+        "published_ports": [],
+        "proxy_container_port": 3000,
+        "host_ports": [],
+        "host_port_env": "",
+        "health_path": "/healthz"
+      },
+      "release": null,
+      "build": {
+        "preset": "node",
+        "dockerfile": "",
+        "install": "",
+        "build_command": "",
+        "start": "node dist/server.js",
+        "output_dir": "",
+        "node": "22",
+        "spa": null,
+        "standalone": false,
+        "context": ".",
+        "target": "",
+        "args": {},
+        "timeout_seconds": 900,
+        "memory_bytes": 2147483648,
+        "cpus": 2,
+        "max_source_bytes": 536870912,
+        "network": "",
+        "effective_network": "",
+        "database": false,
+        "platform": "",
+        "builder_only": false,
+        "source_hosts": [
+          "api.github.com",
+          "codeload.github.com"
+        ]
+      },
+      "extra_networks": [],
+      "managed_databases": []
+    }
+  ],
+  "jobs": [],
+  "databases": [],
+  "previews": [],
+  "registries": [],
+  "proxy": {
+    "type": "caddy",
+    "admin": "http://127.0.0.1:2019",
+    "acme_email": "ops@example.com",
+    "tls": "",
+    "trusted_proxies": [],
+    "client_ip_header": "",
+    "access_log": "",
+    "certificates": [],
+    "sites": [],
+    "upstreams_file": "",
+    "test": [],
+    "reload": []
+  },
+  "notifications": null,
+  "managed_postgres": {
+    "version": 16,
+    "port": 5442,
+    "memory_bytes": 536870912,
+    "image": "postgres:16-alpine"
+  }
+}

@@ -1,0 +1,157 @@
+[
+  {
+    "container": null,
+    "digest": "",
+    "domains": [
+      "shop.example.com",
+      "www.shop.example.com"
+    ],
+    "env_changed_at": "",
+    "environment": "production",
+    "image": "ghcr.io/acme/shop",
+    "last_deployment": null,
+    "name": "shop",
+    "project": "shop"
+  },
+  {
+    "container": {
+      "created": "2026-01-01T00:00:00Z",
+      "id": "<hash>",
+      "image": "ghcr.io/acme/worker:latest",
+      "image_id": "sha256:c140a52a7171a3601b752ff5decefc45f720293959d915464a54b937a672b79c",
+      "name": "worker",
+      "ports": [
+        {
+          "ip": "127.0.0.1",
+          "private_port": 9000,
+          "public_port": 9000,
+          "type": "tcp"
+        }
+      ],
+      "restart_count": 0,
+      "state": {
+        "exit_code": 0,
+        "oom_killed": false,
+        "paused": false,
+        "restarting": false,
+        "running": true,
+        "started_at": "2026-01-01T00:00:00Z",
+        "status": "running"
+      },
+      "tty": false
+    },
+    "digest": "sha256:700bc8099df966fa99d2590e7de959d107044131bc0750415ac980f37bf9adf0",
+    "env_changed_at": "",
+    "environment": "",
+    "image": "ghcr.io/acme/worker",
+    "last_deployment": {
+      "app": "worker",
+      "error": "docker: status 404: manifest for ghcr.io/acme/worker:missing not found: manifest unknown: manifest unknown",
+      "finished_at": "2026-01-01T00:00:00Z",
+      "id": "<id>",
+      "phases": [
+        {
+          "finished_at": "2026-01-01T00:00:00Z",
+          "name": "release",
+          "started_at": "2026-01-01T00:00:00Z",
+          "status": "failed"
+        }
+      ],
+      "ref": "ghcr.io/acme/worker:missing",
+      "serving_ref": "ghcr.io/acme/worker:latest",
+      "started_at": "2026-01-01T00:00:00Z",
+      "status": "failed",
+      "trigger": "api"
+    },
+    "name": "worker",
+    "project": ""
+  },
+  {
+    "container": null,
+    "digest": "",
+    "domains": [
+      "legacy.example.com"
+    ],
+    "env_changed_at": "",
+    "environment": "",
+    "image": "keelson-local/legacy",
+    "last_deployment": null,
+    "name": "legacy",
+    "project": ""
+  },
+  {
+    "container": null,
+    "digest": "",
+    "env_changed_at": "",
+    "environment": "",
+    "image": "ghcr.io/acme/tools",
+    "last_deployment": null,
+    "name": "tools",
+    "project": ""
+  },
+  {
+    "container": null,
+    "digest": "",
+    "domains": [
+      "web.example.com"
+    ],
+    "env_changed_at": "",
+    "environment": "",
+    "image": "ghcr.io/acme/web",
+    "last_deployment": null,
+    "name": "web",
+    "project": "web"
+  },
+  {
+    "container": null,
+    "digest": "",
+    "domains": [
+      "api-app.example.com"
+    ],
+    "env_changed_at": "",
+    "environment": "",
+    "image": "ghcr.io/acme/api",
+    "last_deployment": null,
+    "name": "api",
+    "project": ""
+  },
+  {
+    "container": null,
+    "digest": "",
+    "domains": [
+      "docs.example.com"
+    ],
+    "env_changed_at": "",
+    "environment": "",
+    "image": "ghcr.io/acme/docs",
+    "last_deployment": null,
+    "name": "docs",
+    "project": ""
+  },
+  {
+    "container": null,
+    "digest": "",
+    "domains": [
+      "site.example.com"
+    ],
+    "env_changed_at": "",
+    "environment": "",
+    "image": "ghcr.io/acme/site",
+    "last_deployment": null,
+    "name": "site",
+    "project": ""
+  },
+  {
+    "container": null,
+    "digest": "",
+    "domains": [
+      "blog.example.com"
+    ],
+    "env_changed_at": "",
+    "environment": "staging",
+    "image": "ghcr.io/acme/blog",
+    "last_deployment": null,
+    "name": "blog",
+    "project": "blog"
+  }
+]

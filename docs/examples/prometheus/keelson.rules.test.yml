@@ -1,0 +1,108 @@
+# Unit tests of keelson.rules.yml: `promtool test rules keelson.rules.test.yml`.
+rule_files:
+  - keelson.rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: a backup with no success for two days, and a restore never tested
+    interval: 1m
+    input_series:
+      - series: 'keelson_backup_scheduled{instance="vps-1", database="shop"}'
+        values: '1x3000'
+      # The last success was at t=0 and the series stays there.
+      - series: 'keelson_backup_last_success_timestamp_seconds{instance="vps-1", database="shop"}'
+        values: '0x3000'
+    alert_rule_test:
+      - eval_time: 12h
+        alertname: KeelsonBackupTooOld
+        exp_alerts: []
+      - eval_time: 49h
+        alertname: KeelsonBackupTooOld
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vps-1, database: shop}
+            exp_annotations: {summary: "No successful backup of shop for 2d 1h 0m 0s"}
+      # It has a success on record, so this one stays quiet; no restore was ever proven, so after a day this one fires.
+      - eval_time: 3h
+        alertname: KeelsonBackupNeverSucceeded
+        exp_alerts: []
+      - eval_time: 12h
+        alertname: KeelsonRestoreNeverTested
+        exp_alerts: []
+      - eval_time: 26h
+        alertname: KeelsonRestoreNeverTested
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vps-1, database: shop}
+            exp_annotations: {summary: "No restore of shop has ever been tested"}
+
+  - name: a database with a schedule and no success on record
+    interval: 1m
+    input_series:
+      - series: 'keelson_backup_scheduled{instance="vps-1", database="shop"}'
+        values: '1x200'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: KeelsonBackupNeverSucceeded
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: KeelsonBackupNeverSucceeded
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vps-1, database: shop}
+            exp_annotations: {summary: "shop has a backup schedule and no successful backup on record"}
+
+  - name: a tested restore keeps the alerts quiet until the proof is a month old
+    interval: 1m
+    input_series:
+      - series: 'keelson_backup_scheduled{instance="vps-1", database="shop"}'
+        values: '1x44700'
+      - series: 'keelson_proof_timestamp_seconds{instance="vps-1", kind="restore", subject="shop"}'
+        values: '0x44700'
+    alert_rule_test:
+      - eval_time: 26h
+        alertname: KeelsonRestoreNeverTested
+        exp_alerts: []
+      - eval_time: 10d
+        alertname: KeelsonRestoreProofOld
+        exp_alerts: []
+      - eval_time: 31d
+        alertname: KeelsonRestoreProofOld
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vps-1, kind: restore, subject: shop}
+            exp_annotations: {summary: "The last tested restore of shop is 31d 0h 0m 0s old"}
+
+  - name: an app that is down, a failed deployment and a job that did not run
+    interval: 1m
+    input_series:
+      - series: 'keelson_app_up{instance="vps-1", app="shop"}'
+        values: '1 1 0x20'
+      - series: 'keelson_app_last_deployment_success{instance="vps-1", app="shop"}'
+        values: '0x20'
+      - series: 'keelson_app_deploying{instance="vps-1", app="shop"}'
+        values: '0x20'
+      - series: 'keelson_job_next_run_timestamp_seconds{instance="vps-1", job="report"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: KeelsonAppDown
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: KeelsonAppDown
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: vps-1, app: shop}
+            exp_annotations:
+              summary: "shop is not running on vps-1"
+              description: "Its container is stopped, restarting in a loop or reported unhealthy."
+      - eval_time: 5m
+        alertname: KeelsonLastDeploymentFailed
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vps-1, app: shop}
+            exp_annotations:
+              summary: "The last deployment of shop did not succeed"
+              description: "It failed or was rolled back: the previous version serves, if the app is up. The alert ends with the next successful deployment."
+      - eval_time: 20m
+        alertname: KeelsonJobOverdue
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: vps-1, job: report}
+            exp_annotations:
+              summary: "The job report did not run when it was due"
+              description: "Its next run is in the past: the scheduler is stuck or the agent was stopped."

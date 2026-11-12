@@ -1,0 +1,16 @@
+# Plain files served by nginx, WITHOUT a Dockerfile in the repository (docs/reference/builds.md, "Build presets: no Dockerfile in the repository"). Without a build_command
+# nothing is built: output_dir (default dist) is copied as it is, "." serves the whole repository (files starting with a
+# dot are never served). With a build_command, Node.js runs it first, as the vite preset does.
+proxy:
+  acme_email: ops@example.com
+
+apps:
+  - name: docs
+    image: ghcr.io/acme/docs
+    port: 8080
+    domains: [docs.example.com]
+    build:
+      preset: static
+      output_dir: public
+      spa: false                      # unknown paths answer 404 (default true: they answer /index.html)
+      # build_command: node build.js  # optional: builds the site before it is served
