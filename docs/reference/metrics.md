@@ -40,6 +40,9 @@ Labels: `app`, `project`, `environment` for an app; `job` and `project` for a jo
 | `keelson_backup_last_run_success` | As for a job, for the database's backup job. |
 | `keelson_backup_last_success_timestamp_seconds` | When a backup of the database last succeeded, among the 50 latest runs; absent when none did. |
 | `keelson_proof_timestamp_seconds{kind,subject}` | When the agent last saw a thing proven: `restore` (a backup restored into a scratch database and compared), `key` (a private key opened a backup), `alert` (a test notification was delivered). |
+| `keelson_delivery_deployments{window,status}` | Deployments that finished in the last 30 days by outcome; `keelson_delivery_deploys_per_day` is the frequency and `keelson_delivery_change_failure_ratio` the share that did not leave the new version serving. See [Delivery performance](./delivery.md). |
+| `keelson_delivery_incidents{window}`, `keelson_delivery_restore_seconds{window,quantile}` | Outages of the window and how long they lasted (`quantile` 0.5 and 1). |
+| `keelson_delivery_lead_time_seconds{window,quantile}`, `keelson_delivery_lead_time_deployments{window}` | Commit to production over the deployments whose commit time the caller sent, and how many that is. |
 | `keelson_collector_success{collector}` | 1 when a part of the answer could be read: `engine`, `apps`, `jobs`, `backups`, `proofs`. 0 means its series are missing from this scrape. |
 | `keelson_scrape_duration_seconds` | How long the answer took to collect. |
 

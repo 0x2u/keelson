@@ -207,6 +207,22 @@ const system = shape({
 
 const proof = shape({ kind: oneOf("key", "alert", "restore"), subject: str, at: str });
 
+// GET /v1/delivery: the same keys for the server and for each of its apps.
+const deliveryNumbers = {
+  range: oneOf("24h", "7d", "30d"),
+  from: str,
+  to: str,
+  days: num,
+  app: opt(str),
+  deployments: shape({ total: num, succeeded: num, failed: num, rolled_back: num, rollback_failed: num }),
+  per_day: num,
+  change_failure_ratio: nullable(num),
+  restore: shape({ incidents: num, median_seconds: nullable(num), longest_seconds: nullable(num), ongoing: num, seconds: list(num) }),
+  lead_time: shape({ deployments: num, covered: nullable(num), median_seconds: nullable(num), p90_seconds: nullable(num), seconds: list(num) }),
+};
+
+const delivery = shape({ ...deliveryNumbers, apps: opt(list(shape({ ...deliveryNumbers, range: opt(oneOf("24h", "7d", "30d")) }))) });
+
 const proxyView = shape({
   type: oneOf("caddy", "nginx"),
   where: str,
@@ -475,6 +491,7 @@ export const checkProxy = checker(proxyView, "proxy");
 export const checkConfigDocument = checker(configDocument, "config");
 export const checkProjectConfigDocument = checker(projectConfigDocument, "project config");
 export const checkProjects = checker(list(projectFile), "projects");
+export const checkDelivery = checker(delivery, "delivery");
 export const checkConfigValidation = checker(configValidation, "validation");
 
 const reported = new Set<string>();

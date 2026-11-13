@@ -1,0 +1,292 @@
+{
+  "apps": [
+    {
+      "app": "shop",
+      "change_failure_ratio": null,
+      "days": 30,
+      "deployments": {
+        "failed": 0,
+        "rollback_failed": 0,
+        "rolled_back": 0,
+        "succeeded": 0,
+        "total": 0
+      },
+      "from": "2026-01-01T00:00:00Z",
+      "lead_time": {
+        "covered": null,
+        "deployments": 0,
+        "median_seconds": null,
+        "p90_seconds": null,
+        "seconds": []
+      },
+      "per_day": 0,
+      "restore": {
+        "incidents": 0,
+        "longest_seconds": null,
+        "median_seconds": null,
+        "ongoing": 0,
+        "seconds": []
+      },
+      "to": "2026-01-01T00:00:00Z"
+    },
+    {
+      "app": "worker",
+      "change_failure_ratio": 0.5,
+      "days": 30,
+      "deployments": {
+        "failed": 1,
+        "rollback_failed": 0,
+        "rolled_back": 0,
+        "succeeded": 1,
+        "total": 2
+      },
+      "from": "2026-01-01T00:00:00Z",
+      "lead_time": {
+        "covered": null,
+        "deployments": 0,
+        "median_seconds": null,
+        "p90_seconds": null,
+        "seconds": []
+      },
+      "per_day": 0.03333333333333333,
+      "restore": {
+        "incidents": 0,
+        "longest_seconds": null,
+        "median_seconds": null,
+        "ongoing": 0,
+        "seconds": []
+      },
+      "to": "2026-01-01T00:00:00Z"
+    },
+    {
+      "app": "legacy",
+      "change_failure_ratio": null,
+      "days": 30,
+      "deployments": {
+        "failed": 0,
+        "rollback_failed": 0,
+        "rolled_back": 0,
+        "succeeded": 0,
+        "total": 0
+      },
+      "from": "2026-01-01T00:00:00Z",
+      "lead_time": {
+        "covered": null,
+        "deployments": 0,
+        "median_seconds": null,
+        "p90_seconds": null,
+        "seconds": []
+      },
+      "per_day": 0,
+      "restore": {
+        "incidents": 0,
+        "longest_seconds": null,
+        "median_seconds": null,
+        "ongoing": 0,
+        "seconds": []
+      },
+      "to": "2026-01-01T00:00:00Z"
+    },
+    {
+      "app": "tools",
+      "change_failure_ratio": null,
+      "days": 30,
+      "deployments": {
+        "failed": 0,
+        "rollback_failed": 0,
+        "rolled_back": 0,
+        "succeeded": 0,
+        "total": 0
+      },
+      "from": "2026-01-01T00:00:00Z",
+      "lead_time": {
+        "covered": null,
+        "deployments": 0,
+        "median_seconds": null,
+        "p90_seconds": null,
+        "seconds": []
+      },
+      "per_day": 0,
+      "restore": {
+        "incidents": 0,
+        "longest_seconds": null,
+        "median_seconds": null,
+        "ongoing": 0,
+        "seconds": []
+      },
+      "to": "2026-01-01T00:00:00Z"
+    },
+    {
+      "app": "web",
+      "change_failure_ratio": null,
+      "days": 30,
+      "deployments": {
+        "failed": 0,
+        "rollback_failed": 0,
+        "rolled_back": 0,
+        "succeeded": 0,
+        "total": 0
+      },
+      "from": "2026-01-01T00:00:00Z",
+      "lead_time": {
+        "covered": null,
+        "deployments": 0,
+        "median_seconds": null,
+        "p90_seconds": null,
+        "seconds": []
+      },
+      "per_day": 0,
+      "restore": {
+        "incidents": 0,
+        "longest_seconds": null,
+        "median_seconds": null,
+        "ongoing": 0,
+        "seconds": []
+      },
+      "to": "2026-01-01T00:00:00Z"
+    },
+    {
+      "app": "api",
+      "change_failure_ratio": null,
+      "days": 30,
+      "deployments": {
+        "failed": 0,
+        "rollback_failed": 0,
+        "rolled_back": 0,
+        "succeeded": 0,
+        "total": 0
+      },
+      "from": "2026-01-01T00:00:00Z",
+      "lead_time": {
+        "covered": null,
+        "deployments": 0,
+        "median_seconds": null,
+        "p90_seconds": null,
+        "seconds": []
+      },
+      "per_day": 0,
+      "restore": {
+        "incidents": 0,
+        "longest_seconds": null,
+        "median_seconds": null,
+        "ongoing": 0,
+        "seconds": []
+      },
+      "to": "2026-01-01T00:00:00Z"
+    },
+    {
+      "app": "docs",
+      "change_failure_ratio": null,
+      "days": 30,
+      "deployments": {
+        "failed": 0,
+        "rollback_failed": 0,
+        "rolled_back": 0,
+        "succeeded": 0,
+        "total": 0
+      },
+      "from": "2026-01-01T00:00:00Z",
+      "lead_time": {
+        "covered": null,
+        "deployments": 0,
+        "median_seconds": null,
+        "p90_seconds": null,
+        "seconds": []
+      },
+      "per_day": 0,
+      "restore": {
+        "incidents": 0,
+        "longest_seconds": null,
+        "median_seconds": null,
+        "ongoing": 0,
+        "seconds": []
+      },
+      "to": "2026-01-01T00:00:00Z"
+    },
+    {
+      "app": "site",
+      "change_failure_ratio": null,
+      "days": 30,
+      "deployments": {
+        "failed": 0,
+        "rollback_failed": 0,
+        "rolled_back": 0,
+        "succeeded": 0,
+        "total": 0
+      },
+      "from": "2026-01-01T00:00:00Z",
+      "lead_time": {
+        "covered": null,
+        "deployments": 0,
+        "median_seconds": null,
+        "p90_seconds": null,
+        "seconds": []
+      },
+      "per_day": 0,
+      "restore": {
+        "incidents": 0,
+        "longest_seconds": null,
+        "median_seconds": null,
+        "ongoing": 0,
+        "seconds": []
+      },
+      "to": "2026-01-01T00:00:00Z"
+    },
+    {
+      "app": "blog",
+      "change_failure_ratio": null,
+      "days": 30,
+      "deployments": {
+        "failed": 0,
+        "rollback_failed": 0,
+        "rolled_back": 0,
+        "succeeded": 0,
+        "total": 0
+      },
+      "from": "2026-01-01T00:00:00Z",
+      "lead_time": {
+        "covered": null,
+        "deployments": 0,
+        "median_seconds": null,
+        "p90_seconds": null,
+        "seconds": []
+      },
+      "per_day": 0,
+      "restore": {
+        "incidents": 0,
+        "longest_seconds": null,
+        "median_seconds": null,
+        "ongoing": 0,
+        "seconds": []
+      },
+      "to": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "change_failure_ratio": 0.5,
+  "days": 30,
+  "deployments": {
+    "failed": 1,
+    "rollback_failed": 0,
+    "rolled_back": 0,
+    "succeeded": 1,
+    "total": 2
+  },
+  "from": "2026-01-01T00:00:00Z",
+  "lead_time": {
+    "covered": null,
+    "deployments": 0,
+    "median_seconds": null,
+    "p90_seconds": null,
+    "seconds": []
+  },
+  "per_day": 0.03333333333333333,
+  "range": "30d",
+  "restore": {
+    "incidents": 0,
+    "longest_seconds": null,
+    "median_seconds": null,
+    "ongoing": 0,
+    "seconds": []
+  },
+  "to": "2026-01-01T00:00:00Z"
+}

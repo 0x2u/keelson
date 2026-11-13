@@ -53,12 +53,15 @@ type Deployment struct {
 	PreviousRef string `json:"previous_ref,omitempty"`
 	// ServingRef is the image that serves once the deployment is over (empty while it runs, and when nothing known
 	// serves).
-	ServingRef string     `json:"serving_ref,omitempty"`
-	Status     string     `json:"status"`
-	Trigger    string     `json:"trigger"` // "api", "cli", "rollback"
-	Error      string     `json:"error,omitempty"`
-	StartedAt  time.Time  `json:"started_at"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	ServingRef string `json:"serving_ref,omitempty"`
+	// CommittedAt is when the code this deployment carries was committed, for the lead time of a change. It is set
+	// only by a caller that knows it (the dashboard, from the repository); nil otherwise.
+	CommittedAt *time.Time `json:"committed_at,omitempty"`
+	Status      string     `json:"status"`
+	Trigger     string     `json:"trigger"` // "api", "cli", "rollback"
+	Error       string     `json:"error,omitempty"`
+	StartedAt   time.Time  `json:"started_at"`
+	FinishedAt  *time.Time `json:"finished_at,omitempty"`
 	// Phases are the pipeline phases reached, in order; none for a deployment recorded before phases existed.
 	Phases []Phase `json:"phases,omitempty"`
 }
@@ -262,6 +265,10 @@ CREATE TABLE app_transitions (
   state TEXT NOT NULL
 );
 CREATE INDEX app_transitions_app_ts ON app_transitions (app, ts);
+`, `
+-- When the code a deployment carries was committed, for the lead time of a change (commit to production). It is known
+-- only for a deployment started from a repository, whose caller sends it; everything else leaves it null.
+ALTER TABLE deployments ADD COLUMN committed_at INTEGER;
 `}
 
 // Open opens (creating if needed) the database at path.
@@ -348,11 +355,19 @@ func NewID() string {
 
 func ms(t time.Time) int64 { return t.UnixMilli() }
 
+// msOrNil is the instant for SQL, NULL for nil.
+func msOrNil(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.UnixMilli()
+}
+
 // CreateDeployment inserts a deployment in the running state.
 func (s *Store) CreateDeployment(ctx context.Context, d Deployment) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO deployments (id, app, ref, previous_ref, status, trigger, started_at) VALUES (?,?,?,?,?,?,?)`,
-		d.ID, d.App, d.Ref, d.PreviousRef, StatusRunning, d.Trigger, ms(d.StartedAt))
+		`INSERT INTO deployments (id, app, ref, previous_ref, status, trigger, started_at, committed_at) VALUES (?,?,?,?,?,?,?,?)`,
+		d.ID, d.App, d.Ref, d.PreviousRef, StatusRunning, d.Trigger, ms(d.StartedAt), msOrNil(d.CommittedAt))
 	return err
 }
 
@@ -409,15 +424,15 @@ func (s *Store) Finish(ctx context.Context, id, status, errMsg, servingRef strin
 	return tx.Commit()
 }
 
-const depColumns = `id, app, ref, previous_ref, serving_ref, status, trigger, error, started_at, finished_at`
+const depColumns = `id, app, ref, previous_ref, serving_ref, status, trigger, error, started_at, finished_at, committed_at`
 
 type scanner interface{ Scan(dest ...any) error }
 
 func scanDeployment(r scanner) (Deployment, error) {
 	var d Deployment
 	var started int64
-	var finished sql.NullInt64
-	if err := r.Scan(&d.ID, &d.App, &d.Ref, &d.PreviousRef, &d.ServingRef, &d.Status, &d.Trigger, &d.Error, &started, &finished); err != nil {
+	var finished, committed sql.NullInt64
+	if err := r.Scan(&d.ID, &d.App, &d.Ref, &d.PreviousRef, &d.ServingRef, &d.Status, &d.Trigger, &d.Error, &started, &finished, &committed); err != nil {
 		return Deployment{}, err
 	}
 	d.StartedAt = time.UnixMilli(started).UTC()
@@ -425,7 +440,24 @@ func scanDeployment(r scanner) (Deployment, error) {
 		t := time.UnixMilli(finished.Int64).UTC()
 		d.FinishedAt = &t
 	}
+	if committed.Valid {
+		t := time.UnixMilli(committed.Int64).UTC()
+		d.CommittedAt = &t
+	}
 	return d, nil
+}
+
+// scanDeployments reads every row of a deployment query.
+func scanDeployments(rows *sql.Rows) ([]Deployment, error) {
+	var out []Deployment
+	for rows.Next() {
+		d, err := scanDeployment(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 // Deployment returns one deployment.

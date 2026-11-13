@@ -29,6 +29,7 @@ The agent, one page per area. Each page has the YAML keys, the behaviour and the
 | [Scheduled jobs](./reference/jobs.md) | HTTP, host and container jobs |
 | [Databases and backups](./reference/databases.md) | Declared and managed PostgreSQL, encrypted backups, restore, restore tests |
 | [Notifications](./reference/notifications.md) | Events, Telegram, webhook, heartbeat |
+| [Delivery performance](./reference/delivery.md) | The four DORA numbers: how they are computed, the route, the Prometheus series |
 | [Metrics](./reference/metrics.md) | `GET /metrics` for Prometheus: what is exported, scraping, alert rules |
 | [Agents that connect out](./reference/relay.md) | The default way to connect a server: one command, one outbound connection, build machines |
 | [Installing and connecting servers](./reference/servers.md) | The alternative: direct connection over mutual TLS, enrolment codes, removing the agent |

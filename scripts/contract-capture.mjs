@@ -96,6 +96,8 @@ for (const name of ["info", "config", "apps", "databases", "jobs", "system", "de
   write(name, await request("GET", `/v1/${name}`), name === "system" ? system : undefined);
 }
 write("project-blog-config", await request("GET", "/v1/projects/blog/config"));
+// The delivery numbers (the DORA measures) the dashboard's Delivery page reads.
+write("delivery", await request("GET", "/v1/delivery?range=30d"));
 
 // The file the agent runs, as the dashboard's editor sends it back for a check; and the same with a key that does not exist.
 const content = readFileSync(appsFile, "utf8");

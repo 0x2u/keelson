@@ -148,7 +148,8 @@ The full reference is [Configuration](docs/reference/configuration.md) and the p
 - Caddy with automatic TLS for apps, static sites, redirects and your own certificates (static sites, redirects and certificates are set in the YAML editor); an nginx driver for hosts that already run nginx (install the agent over SSH or by hand with `--nginx`; the one-command connected install does not set it up); a domains wizard with Cloudflare DNS and live DNS, proxy and HTTPS checks ([serving apps on a domain](docs/reference/proxy.md#serve-apps-on-a-domain)).
 - Environment variables edited in the dashboard without SSH, write-only once saved.
 - Live logs, container statistics and an activity feed across servers.
-- A Prometheus `/metrics` endpoint on every agent (apps up, last deployment, jobs, backup age, restore proofs) with tested example alert rules ([Metrics](docs/reference/metrics.md)).
+- A Prometheus `/metrics` endpoint on every agent (apps up, last deployment, jobs, backup age, restore proofs, the delivery numbers) with tested example alert rules ([Metrics](docs/reference/metrics.md)).
+- **Delivery performance**: the four [DORA](https://dora.dev/) numbers for the whole fleet — deployment frequency, lead time for changes, change failure rate, time to restore service — computed from the deployments and outages the agents already record, with the band each falls in ([Delivery performance](docs/reference/delivery.md)).
 
 **Access**
 - Two-factor sign-in (TOTP, recovery codes, passkeys), revocable sessions, an audit log, an optional IP allowlist, secrets encrypted at rest.

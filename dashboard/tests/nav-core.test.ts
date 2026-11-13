@@ -9,8 +9,8 @@ const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const SERVER = { id: "s1", name: "vps-1" };
 
 describe("the sidebar", () => {
-  it("lists Home, Projects, Servers and Activity, with Settings in the footer: no Databases and no Jobs entry", () => {
-    expect(NAV.map((n) => n.label)).toEqual(["Home", "Projects", "Servers", "Activity"]);
+  it("lists Home, Projects, Servers, Delivery and Activity, with Settings in the footer: no Databases and no Jobs entry", () => {
+    expect(NAV.map((n) => n.label)).toEqual(["Home", "Projects", "Servers", "Delivery", "Activity"]);
     expect(FOOTER_NAV.map((n) => n.label)).toEqual(["Settings"]);
   });
 

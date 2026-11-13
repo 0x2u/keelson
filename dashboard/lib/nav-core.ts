@@ -20,6 +20,7 @@ export const NAV: NavEntry[] = [
   { href: "/", label: "Home", also: ["/jobs", "/databases"] },
   { href: "/projects", label: "Projects" },
   { href: "/servers", label: "Servers" },
+  { href: "/delivery", label: "Delivery" },
   { href: "/activity", label: "Activity" },
 ];
 

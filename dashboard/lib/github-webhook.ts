@@ -244,7 +244,7 @@ async function deployTo(link: { serverId: string; app: string }, run: AcceptedRu
   if (!decision.deploy) return finish("skipped", decision.reason);
 
   try {
-    const deploymentId = await within(agent.deploy(link.app, { tag: run.sha }), deps.deployBudgetMs ?? DEPLOY_BUDGET_MS);
+    const deploymentId = await within(agent.deploy(link.app, { tag: run.sha, ...(run.committedAt === undefined ? {} : { committed_at: run.committedAt }) }), deps.deployBudgetMs ?? DEPLOY_BUDGET_MS);
     return finish("deployed", "deployment started", deploymentId);
   } catch (err) {
     // No answer in time says nothing about whether the request got through: it may have started.
@@ -503,10 +503,10 @@ class RouteError extends Error {}
  * that server (`POST /v1/builds`: the app's `build:` block read from the app's own server, no app there), with the journey of
  * the image back to the app's server prepared. Throws what the agent throws (BudgetError, AgentError) and RouteError.
  */
-async function submitBuild(link: { serverId: string; app: string }, server: ServerCredentials, agent: BuildAgent, sha: string, source: BuildSource, deps: WebhookDeps): Promise<Submitted> {
+async function submitBuild(link: { serverId: string; app: string }, server: ServerCredentials, agent: BuildAgent, sha: string, source: BuildSource, deps: WebhookDeps, committedAt?: string): Promise<Submitted> {
   const budget = deps.deployBudgetMs ?? DEPLOY_BUDGET_MS;
   const buildOn = getAppRepo(link.serverId, link.app)?.buildOn ?? null;
-  if (buildOn === null) return { deploymentId: await within(agent.build(link.app, sha, source), budget), serverId: link.serverId, transfer: null };
+  if (buildOn === null) return { deploymentId: await within(agent.build(link.app, sha, source, committedAt), budget), serverId: link.serverId, transfer: null };
 
   const builder = getCredentials(buildOn);
   if (!builder) throw new RouteError("the build server is not registered in this dashboard");
@@ -604,7 +604,7 @@ async function buildTo(link: { serverId: string; app: string }, push: AcceptedPu
 
   let submitted: Submitted;
   try {
-    submitted = await submitBuild(link, server, agent, push.sha, { url: source, token: minting.token } satisfies BuildSource, deps);
+    submitted = await submitBuild(link, server, agent, push.sha, { url: source, token: minting.token } satisfies BuildSource, deps, push.committedAt);
   } catch (err) {
     if (err instanceof BudgetError) return finish("unknown", "the agent did not answer the build request in time; the build may have started");
     if (err instanceof RouteError) return finish("failed", err.message);

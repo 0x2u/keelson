@@ -363,10 +363,32 @@ export interface BuildRequestBody {
   build: BuildConfig;
   port?: number;
   health_path?: string;
+  /** When the commit was made, so the agent can record the lead time of the change. */
+  committed_at?: string;
 }
 
-/** Exactly one of tag or digest. */
-export type DeployTarget = { tag: string; digest?: never } | { digest: string; tag?: never };
+/** Exactly one of tag or digest. `committed_at` is when that code was committed, which the agent records so that the lead time of a change can be measured. */
+export type DeployTarget = ({ tag: string; digest?: never } | { digest: string; tag?: never }) & { committed_at?: string };
+
+/** GET /v1/delivery: how this server delivered over a window (the DORA numbers). */
+export interface ServerDelivery {
+  range: "24h" | "7d" | "30d";
+  from: string;
+  to: string;
+  days: number;
+  /** Set on the entries of `apps`; absent for the server as a whole. */
+  app?: string;
+  deployments: { total: number; succeeded: number; failed: number; rolled_back: number; rollback_failed: number };
+  /** Successful deployments a day. */
+  per_day: number;
+  /** Share of the finished deployments that did not leave the new version serving; null when none finished. */
+  change_failure_ratio: number | null;
+  restore: { incidents: number; median_seconds: number | null; longest_seconds: number | null; ongoing: number; seconds: number[] };
+  /** Over the successful deployments whose commit time the caller sent; `covered` is their share. */
+  lead_time: { deployments: number; covered: number | null; median_seconds: number | null; p90_seconds: number | null; seconds: number[] };
+  /** The same numbers per app; absent when one app was asked for. */
+  apps?: ServerDelivery[];
+}
 
 export type JobRunStatus = "running" | "succeeded" | "failed" | "skipped" | "missed";
 

@@ -109,6 +109,9 @@ type Proxy interface {
 type Target struct {
 	Tag    string `json:"tag,omitempty"`
 	Digest string `json:"digest,omitempty"`
+	// CommittedAt is when the code of this image was committed, for the lead time of a change. The caller knows it
+	// (the dashboard reads it from the repository); the agent only records it.
+	CommittedAt *time.Time `json:"committed_at,omitempty"`
 }
 
 // Ref returns the image reference to run for repo.
@@ -232,7 +235,7 @@ func (d *Deployer) Start(ctx context.Context, app string, target Target, trigger
 		}
 		local = true
 	}
-	return d.start(ctx, a, ref, trigger, launchOpts{local: local})
+	return d.start(ctx, a, ref, trigger, launchOpts{local: local, committedAt: target.CommittedAt})
 }
 
 // Rollback redeploys the most recent successful image that is not the one
@@ -294,7 +297,7 @@ func (d *Deployer) reserve(name string) bool {
 // launch records the deployment id of a reserved app and runs it in the background. The lock is released when the
 // deployment ends, or at once when it cannot be recorded.
 func (d *Deployer) launch(ctx context.Context, a config.App, id, ref, trigger string, opts launchOpts) (<-chan struct{}, error) {
-	err := d.store.CreateDeployment(ctx, store.Deployment{ID: id, App: a.Name, Ref: ref, Trigger: trigger, StartedAt: d.now()})
+	err := d.store.CreateDeployment(ctx, store.Deployment{ID: id, App: a.Name, Ref: ref, Trigger: trigger, StartedAt: d.now(), CommittedAt: opts.committedAt})
 	if err != nil {
 		d.release(a.Name)
 		opts.abandon()

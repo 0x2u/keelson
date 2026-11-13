@@ -132,7 +132,7 @@ func startStack(ctx context.Context, c stackConfig) (s *stack, err error) {
 	// instance is brought up at once and kept up, whatever happened to its container (or to Docker) meanwhile.
 	s.pgm = postgres.New(postgres.Options{Engine: admin, Config: manager, Env: s.deployer.Env(), Busy: s.dbs.Busy, DataDir: c.dataDir, Log: c.log})
 	go s.pgm.Run(ctx, postgresReconcileEvery)
-	s.api = &api.DeployOptions{Deployments: s.deployer, Secret: c.secret, Replays: s.st, Jobs: s.sched, Databases: s.dbs, Previews: s.deployer, Config: manager, Audit: s.st, History: s.st, HostHistory: s.st, Availability: s.st, Env: s.deployer.Env(), Postgres: s.pgm, Images: s.deployer, StagingDir: imageStaging(c.dataDir), Alerts: s.notifier, Proofs: s.st, Builds: s.deployer}
+	s.api = &api.DeployOptions{Deployments: s.deployer, Secret: c.secret, Replays: s.st, Jobs: s.sched, Databases: s.dbs, Previews: s.deployer, Config: manager, Audit: s.st, History: s.st, HostHistory: s.st, Availability: s.st, Delivery: s.st, Env: s.deployer.Env(), Postgres: s.pgm, Images: s.deployer, StagingDir: imageStaging(c.dataDir), Alerts: s.notifier, Proofs: s.st, Builds: s.deployer}
 	if c.buildMachine {
 		s.api.Jobs, s.api.Databases, s.api.Previews, s.api.Postgres = nil, nil, nil, nil
 	}

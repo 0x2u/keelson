@@ -76,6 +76,7 @@ import type {
   AlertRecord,
   HostHistory,
   AppAvailability,
+  ServerDelivery,
 } from "@/lib/agent-types";
 
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -397,6 +398,16 @@ export class AgentClient {
     }
   }
 
+  /** How this server delivered over `range` ("24h", "7d" or "30d"); null for an agent older than the route or with deployments off. */
+  async delivery(range: string): Promise<ServerDelivery | null> {
+    try {
+      return await this.json<ServerDelivery>(`/v1/delivery?range=${encodeURIComponent(range)}`);
+    } catch (err) {
+      if (err instanceof AgentError && err.status === 404) return null;
+      throw err;
+    }
+  }
+
   /** The notifications the agent raised, newest first; null for an agent older than the route or with deployments off. */
   async notificationHistory(limit = 200): Promise<AlertRecord[] | null> {
     try {
@@ -459,8 +470,8 @@ export class AgentClient {
    * deployment run on after the answer. Throws AgentError (400 when the app has no `build:`, 409 when busy). The token
    * is only sent to the agent; it is removed from any error message.
    */
-  async build(app: string, sha: string, source: BuildSource): Promise<string> {
-    const body = JSON.stringify({ sha, source: { url: source.url, token: source.token }, deploy: true });
+  async build(app: string, sha: string, source: BuildSource, committedAt?: string): Promise<string> {
+    const body = JSON.stringify({ sha, source: { url: source.url, token: source.token }, deploy: true, committed_at: committedAt });
     const out = await this.withoutToken(source.token, () =>
       this.json<{ deployment_id: string }>(`/v1/apps/${encodeURIComponent(app)}/build`, { method: "POST", body, signed: true }),
     );

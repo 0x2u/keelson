@@ -52,6 +52,7 @@ const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/": ICONS.home,
   "/projects": ICONS.project,
   "/servers": ICONS.server,
+  "/delivery": ICONS.delivery,
   "/activity": ICONS.activity,
   "/settings": ICONS.settings,
 };

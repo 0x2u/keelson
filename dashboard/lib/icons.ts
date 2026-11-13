@@ -7,6 +7,7 @@ import {
   ClipboardCheckIcon,
   CpuIcon,
   DatabaseIcon,
+  GaugeIcon,
   GitBranchIcon,
   GlobeIcon,
   HammerIcon,
@@ -45,6 +46,8 @@ export const ICONS = {
   domain: GlobeIcon,
   /** The activity feed: what happened, newest first. */
   activity: ActivityIcon,
+  /** How the fleet delivers: the four measures of DORA over a window. */
+  delivery: GaugeIcon,
   /** Version history of a file, a configuration or a variable set. */
   history: HistoryIcon,
   /** The audit log of a server. */

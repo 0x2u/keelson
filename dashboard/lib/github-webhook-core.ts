@@ -43,6 +43,8 @@ export const WorkflowRunPayload = z.object({
     head_sha: z.string(),
     head_branch: z.string().nullish(),
     head_repository: Repo.nullish(),
+    /** GitHub sends the commit the run was for here; its timestamp is what the lead time of a change is measured from. */
+    head_commit: z.object({ timestamp: z.string().nullish() }).nullish(),
     // The pull requests the run belongs to. GitHub leaves it empty for runs from forks.
     pull_requests: z.array(z.object({ number: z.number().int(), base: z.object({ ref: z.string() }).nullish() })).nullish(),
   }),
@@ -55,6 +57,8 @@ export interface AcceptedRun {
   branch: string;
   sha: string;
   workflow: string;
+  /** When the commit was made (RFC 3339), when the payload said; the agent records it for the lead time of a change. */
+  committedAt?: string;
   /** Identifies the run itself (repository, run id, attempt), taken from the signed body: every delivery of that run shares it. */
   runKey: string;
 }
@@ -85,6 +89,7 @@ export function acceptRun(payload: WorkflowRunPayload): RunDecision {
       branch: run.head_branch,
       sha: run.head_sha,
       workflow: run.name,
+      ...(isInstant(run.head_commit?.timestamp) ? { committedAt: run.head_commit?.timestamp } : {}),
       runKey: `${payload.repository.full_name.toLowerCase()}#${run.id}#${run.run_attempt ?? 1}`,
     },
   };
@@ -162,6 +167,7 @@ export function acceptPreviewRun(payload: WorkflowRunPayload): PreviewRunDecisio
       headBranch: run.head_branch ?? null,
       sha: run.head_sha,
       workflow: run.name,
+      ...(isInstant(run.head_commit?.timestamp) ? { committedAt: run.head_commit?.timestamp } : {}),
       runKey: `${payload.repository.full_name.toLowerCase()}#${run.id}#${run.run_attempt ?? 1}`,
       pullRequests,
     },
@@ -307,6 +313,8 @@ export const PushPayload = z.object({
   deleted: z.boolean().nullish(),
   repository: Repo,
   installation: Installation.nullish(),
+  /** GitHub sends the time of the pushed commit here; it is what the lead time of a change is measured from. */
+  head_commit: z.object({ timestamp: z.string().nullish() }).nullish(),
 });
 export type PushPayload = z.infer<typeof PushPayload>;
 
@@ -315,6 +323,8 @@ export interface AcceptedPush {
   repo: string;
   branch: string;
   sha: string;
+  /** When the commit was made (RFC 3339), when the payload said; the agent records it for the lead time of a change. */
+  committedAt?: string;
   /** `<repo>#push#<sha>`: every delivery of this push, and a redelivery under a new id, shares it. */
   runKey: string;
 }
@@ -322,6 +332,11 @@ export interface AcceptedPush {
 export type PushDecision = { accepted: true; push: AcceptedPush } | { accepted: false; reason: string };
 
 const BRANCH_REF = "refs/heads/";
+
+/** Whether a string is an instant the agent will accept (RFC 3339, as GitHub writes commit timestamps). */
+export function isInstant(value: string | null | undefined): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(value) && !Number.isNaN(Date.parse(value));
+}
 
 /**
  * Whether a push can start a build at all, whatever is linked: it updates a branch (not a tag), does not delete it,
@@ -338,6 +353,7 @@ export function acceptPush(payload: PushPayload): PushDecision {
       repo: payload.repository.full_name,
       branch: payload.ref.slice(BRANCH_REF.length),
       sha: payload.after,
+      ...(isInstant(payload.head_commit?.timestamp) ? { committedAt: payload.head_commit?.timestamp } : {}),
       runKey: `${payload.repository.full_name.toLowerCase()}#push#${payload.after}`,
     },
   };

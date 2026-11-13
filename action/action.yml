@@ -23,6 +23,13 @@ inputs:
     description: Image digest (sha256:...) to deploy instead of a tag.
     required: false
     default: ""
+  committed-at:
+    description: >-
+      When the commit being deployed was made (RFC 3339, as GitHub writes it).
+      The agent records it so that the lead time of a change (commit to production) can be measured.
+      Defaults to the timestamp of the pushed commit; set it to "" to send nothing.
+    required: false
+    default: ${{ github.event.head_commit.timestamp }}
   deploy-secret:
     description: The agent's deploy secret, used to sign the request. Pass it from a repository secret.
     required: true
@@ -70,6 +77,7 @@ runs:
         KEELSON_APP: ${{ inputs.app }}
         KEELSON_TAG: ${{ inputs.tag }}
         KEELSON_DIGEST: ${{ inputs.digest }}
+        KEELSON_COMMITTED_AT: ${{ inputs.committed-at }}
         KEELSON_DEPLOY_SECRET: ${{ inputs.deploy-secret }}
         KEELSON_READ_TOKEN: ${{ inputs.read-token }}
         KEELSON_TIMEOUT: ${{ inputs.timeout }}

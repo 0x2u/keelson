@@ -133,6 +133,9 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 		if s.deploy.Proofs != nil {
 			collect("proofs", func() error { return s.proofMetrics(ctx, e) })
 		}
+		if s.deploy.Delivery != nil {
+			collect("delivery", func() error { return s.deliveryMetrics(ctx, e) })
+		}
 	}
 	e.gauge("keelson_scrape_duration_seconds", "How long this answer took to collect.", s.now().Sub(start).Seconds())
 
@@ -296,5 +299,40 @@ func (s *server) proofMetrics(ctx context.Context, e *exposition) error {
 	for _, p := range proofs {
 		e.gauge("keelson_proof_timestamp_seconds", "When the agent last saw this proven (Unix seconds): kind is restore (a backup restored into a scratch database), key (a private key opened a backup) or alert (a test notification was delivered); subject is what it was proven for.", seconds(p.At), "kind", p.Kind, "subject", p.Subject)
 	}
+	return nil
+}
+
+// deliveryMetrics is the delivery performance of the server over the last 30 days: the numbers of GET /v1/delivery, so
+// that a Grafana dashboard shows the same figures as Keelson's own. They are windowed gauges, not counters: the agent
+// keeps no registry, and the window is the one the outage record covers.
+func (s *server) deliveryMetrics(ctx context.Context, e *exposition) error {
+	now := s.now()
+	d, err := s.deploy.Delivery.Delivery(ctx, "", now.Add(-store.MaxDeliveryWindow), now)
+	if err != nil {
+		return err
+	}
+	const window = "30d"
+	const restoreHelp = "How long the outages of the window lasted; quantile 0.5 is the median, 1 the longest. An outage that is still going is counted up to now."
+	const leadHelp = "How long a commit took to reach production, over the deployments of the window that carry the time of their commit."
+	for status, n := range map[string]int{
+		"succeeded": d.Deployments.Succeeded, "failed": d.Deployments.Failed,
+		"rolled_back": d.Deployments.RolledBack, "rollback_failed": d.Deployments.RollbackFailed,
+	} {
+		e.gauge("keelson_delivery_deployments", "Deployments that finished in the window, by outcome.", float64(n), "window", window, "status", status)
+	}
+	e.gauge("keelson_delivery_deploys_per_day", "Successful deployments a day over the window (the deployment frequency).", d.PerDay, "window", window)
+	if d.ChangeFailureRatio != nil {
+		e.gauge("keelson_delivery_change_failure_ratio", "Share of the finished deployments of the window that did not leave the new version serving, from 0 to 1.", *d.ChangeFailureRatio, "window", window)
+	}
+	e.gauge("keelson_delivery_incidents", "Outages of the apps that touch the window (an app down, as the app watcher judges it).", float64(d.Restore.Incidents), "window", window)
+	if d.Restore.MedianSeconds != nil {
+		e.gauge("keelson_delivery_restore_seconds", restoreHelp, *d.Restore.MedianSeconds, "window", window, "quantile", "0.5")
+		e.gauge("keelson_delivery_restore_seconds", restoreHelp, *d.Restore.LongestSeconds, "window", window, "quantile", "1")
+	}
+	if d.LeadTime.MedianSeconds != nil {
+		e.gauge("keelson_delivery_lead_time_seconds", leadHelp, *d.LeadTime.MedianSeconds, "window", window, "quantile", "0.5")
+		e.gauge("keelson_delivery_lead_time_seconds", leadHelp, *d.LeadTime.P90Seconds, "window", window, "quantile", "0.9")
+	}
+	e.gauge("keelson_delivery_lead_time_deployments", "Successful deployments of the window whose commit time is known, which is what the lead time is measured over.", float64(d.LeadTime.Deployments), "window", window)
 	return nil
 }

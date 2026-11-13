@@ -37,10 +37,10 @@ beforeEach(() => {
 });
 
 describe("the sidebar", () => {
-  it("has Home, Projects, Servers (with its server list and Add server), Activity and, in the footer, Settings: no Databases and no Jobs", () => {
+  it("has Home, Projects, Servers (with its server list and Add server), Delivery, Activity and, in the footer, Settings: no Databases and no Jobs", () => {
     const html = sidebar("/");
     const hrefs = [...html.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1]);
-    expect(hrefs).toEqual(["/", "/", "/projects", "/projects/new", "/servers", "/servers/s1", "/servers/s2", "/servers/new", "/activity", "/settings"]);
+    expect(hrefs).toEqual(["/", "/", "/projects", "/projects/new", "/servers", "/servers/s1", "/servers/s2", "/servers/new", "/delivery", "/activity", "/settings"]);
     expect(html).toContain("vps-1");
     expect(html).toContain("Hide the server list");
     expect(html).toContain("Hide the project list");
@@ -62,6 +62,7 @@ describe("the sidebar", () => {
     ["/servers", "Servers"],
     ["/databases", "Home"],
     ["/jobs", "Home"],
+    ["/delivery", "Delivery"],
     ["/activity", "Activity"],
     ["/settings", "Settings"],
     ["/settings/security", "Settings"],

@@ -22,7 +22,7 @@ type Deployments interface {
 	Start(ctx context.Context, app string, target deploy.Target, trigger string) (string, <-chan struct{}, error)
 	Rollback(ctx context.Context, app string) (string, <-chan struct{}, error)
 	// StartBuild builds the app's image from a source archive and deploys it as one deployment.
-	StartBuild(ctx context.Context, app, sha string, src build.Source) (string, <-chan struct{}, error)
+	StartBuild(ctx context.Context, app, sha string, src build.Source, committedAt *time.Time) (string, <-chan struct{}, error)
 	Apps(ctx context.Context) ([]deploy.AppStatus, error)
 	// Proxy describes the reverse proxy; nil when none is configured.
 	Proxy(ctx context.Context) (*deploy.ProxyView, error)
@@ -57,6 +57,8 @@ type DeployOptions struct {
 	HostHistory HostHistoryService
 	// Availability serves the recorded uptime of the apps; nil leaves GET /v1/apps/{app}/availability out.
 	Availability AvailabilityService
+	// Delivery serves the delivery performance of the server (the DORA numbers); nil leaves GET /v1/delivery out.
+	Delivery DeliveryService
 	// Env enables the routes of the variables set through the API; nil leaves them out.
 	Env EnvService
 	// Postgres enables the routes of the managed PostgreSQL; nil leaves them out.
@@ -127,6 +129,9 @@ func (s *server) deployRoutes(mux *http.ServeMux) {
 	}
 	if s.deploy.Availability != nil {
 		mux.HandleFunc("GET /v1/apps/{app}/availability", s.appAvailability)
+	}
+	if s.deploy.Delivery != nil {
+		mux.HandleFunc("GET /v1/delivery", s.delivery)
 	}
 	if s.deploy.Images != nil {
 		s.imageRoutes(mux)
@@ -310,6 +315,9 @@ type deployRequest struct {
 	// image built on another server and sent here). It is only recorded in the deployment's history; anything else is
 	// refused.
 	Trigger string `json:"trigger"`
+	// CommittedAt is when the code of this image was committed, for the lead time of a change (the dashboard reads it
+	// from the repository). The agent only records it.
+	CommittedAt *time.Time `json:"committed_at"`
 }
 
 func (s *server) startDeploy(w http.ResponseWriter, r *http.Request) {
@@ -329,7 +337,7 @@ func (s *server) startDeploy(w http.ResponseWriter, r *http.Request) {
 		s.failDeploy(w, r, deploy.ErrInvalidTarget)
 		return
 	}
-	id, _, err := s.deploy.Deployments.Start(r.Context(), r.PathValue("app"), deploy.Target{Tag: req.Tag, Digest: req.Digest}, trigger)
+	id, _, err := s.deploy.Deployments.Start(r.Context(), r.PathValue("app"), deploy.Target{Tag: req.Tag, Digest: req.Digest, CommittedAt: req.CommittedAt}, trigger)
 	if err != nil {
 		s.failDeploy(w, r, err)
 		return

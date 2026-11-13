@@ -148,7 +148,7 @@ func newBuildHarness(t *testing.T) *buildHarness {
 func (h *buildHarness) startBuild(app string, n int) (store.Deployment, error) {
 	h.t.Helper()
 	src := testSource()
-	id, done, err := h.d.StartBuild(context.Background(), app, sha(n), src)
+	id, done, err := h.d.StartBuild(context.Background(), app, sha(n), src, nil)
 	if err != nil {
 		return store.Deployment{}, err
 	}
@@ -314,15 +314,15 @@ func TestOnlyOneBuildRunsAtATimeAndAppsAreLockedToo(t *testing.T) {
 	h := newBuildHarness(t)
 	h.b.gate = make(chan struct{})
 
-	id1, done1, err := h.d.StartBuild(context.Background(), "web", sha(1), testSource())
+	id1, done1, err := h.d.StartBuild(context.Background(), "web", sha(1), testSource(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	<-h.b.started
-	if _, _, err := h.d.StartBuild(context.Background(), "web", sha(2), testSource()); !errors.Is(err, ErrBusy) {
+	if _, _, err := h.d.StartBuild(context.Background(), "web", sha(2), testSource(), nil); !errors.Is(err, ErrBusy) {
 		t.Errorf("the same app: want ErrBusy, got %v", err)
 	}
-	if _, _, err := h.d.StartBuild(context.Background(), "api", sha(2), testSource()); !errors.Is(err, ErrBuildBusy) {
+	if _, _, err := h.d.StartBuild(context.Background(), "api", sha(2), testSource(), nil); !errors.Is(err, ErrBuildBusy) {
 		t.Errorf("another app while a build runs: want ErrBuildBusy, got %v", err)
 	}
 	// A refused request leaves nothing behind.
@@ -350,14 +350,14 @@ func TestOnlyOneBuildRunsAtATimeAndAppsAreLockedToo(t *testing.T) {
 func TestBuildRequestsAreRefusedBeforeAnythingIsRecorded(t *testing.T) {
 	h := newBuildHarness(t)
 	ctx := context.Background()
-	if _, _, err := h.d.StartBuild(ctx, "nope", sha(1), testSource()); !errors.Is(err, ErrUnknownApp) {
+	if _, _, err := h.d.StartBuild(ctx, "nope", sha(1), testSource(), nil); !errors.Is(err, ErrUnknownApp) {
 		t.Errorf("unknown app: %v", err)
 	}
-	if _, _, err := h.d.StartBuild(ctx, "static", sha(1), testSource()); !errors.Is(err, ErrNoBuild) {
+	if _, _, err := h.d.StartBuild(ctx, "static", sha(1), testSource(), nil); !errors.Is(err, ErrNoBuild) {
 		t.Errorf("app without a build block: %v", err)
 	}
 	h.b.validateErr = build.ErrSourceHost
-	if _, _, err := h.d.StartBuild(ctx, "web", sha(1), testSource()); !errors.Is(err, build.ErrSourceHost) {
+	if _, _, err := h.d.StartBuild(ctx, "web", sha(1), testSource(), nil); !errors.Is(err, build.ErrSourceHost) {
 		t.Errorf("validation: %v", err)
 	}
 	h.b.validateErr = nil
@@ -371,7 +371,7 @@ func TestBuildRequestsAreRefusedBeforeAnythingIsRecorded(t *testing.T) {
 
 	// An agent that cannot build says the same as an app that has no block.
 	h2 := newHarness(t, func(a *config.App) { a.Build = testBuildConfig() })
-	if _, _, err := h2.d.StartBuild(ctx, "web", sha(1), testSource()); !errors.Is(err, ErrNoBuild) {
+	if _, _, err := h2.d.StartBuild(ctx, "web", sha(1), testSource(), nil); !errors.Is(err, ErrNoBuild) {
 		t.Errorf("no builder: %v", err)
 	}
 }
@@ -379,7 +379,7 @@ func TestBuildRequestsAreRefusedBeforeAnythingIsRecorded(t *testing.T) {
 func TestShutdownRefusesAndCancelsBuilds(t *testing.T) {
 	h := newBuildHarness(t)
 	h.b.gate = make(chan struct{}) // never closed: only the shutdown ends it
-	id, done, err := h.d.StartBuild(context.Background(), "web", sha(1), testSource())
+	id, done, err := h.d.StartBuild(context.Background(), "web", sha(1), testSource(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +393,7 @@ func TestShutdownRefusesAndCancelsBuilds(t *testing.T) {
 	if dep, _ := h.st.Deployment(context.Background(), id); dep.Status != store.StatusFailed || !strings.Contains(dep.Error, "canceled") {
 		t.Errorf("%+v", dep)
 	}
-	if _, _, err := h.d.StartBuild(context.Background(), "web", sha(2), testSource()); !errors.Is(err, ErrShuttingDown) {
+	if _, _, err := h.d.StartBuild(context.Background(), "web", sha(2), testSource(), nil); !errors.Is(err, ErrShuttingDown) {
 		t.Errorf("got %v", err)
 	}
 }
@@ -707,7 +707,7 @@ func TestBuildPreviewAndAppBuildShareTheOneSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-b.started
-	if _, _, err := h.d.StartBuild(context.Background(), "web", sha(2), testSource()); !errors.Is(err, ErrBuildBusy) && !errors.Is(err, ErrBusy) {
+	if _, _, err := h.d.StartBuild(context.Background(), "web", sha(2), testSource(), nil); !errors.Is(err, ErrBuildBusy) && !errors.Is(err, ErrBusy) {
 		t.Errorf("a build of the app during a preview build: %v", err)
 	}
 	close(b.gate)

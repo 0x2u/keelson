@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/0x2u/keelson/agent/internal/build"
 	"github.com/0x2u/keelson/agent/internal/config"
@@ -27,6 +28,8 @@ type requestedBuild struct {
 	Build      *config.Build `json:"build"`
 	Port       int           `json:"port"`
 	HealthPath string        `json:"health_path"`
+	// CommittedAt is when the commit was made, for the lead time of a change; the agent only records it.
+	CommittedAt *time.Time `json:"committed_at"`
 }
 
 // startRequestedBuild builds an image another server will run. The answer only says the deployment was accepted; its
@@ -43,6 +46,7 @@ func (s *server) startRequestedBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _, err := s.deploy.Builds.StartBuildRequest(r.Context(), deploy.BuildRequest{
 		App: req.App, Image: req.Image, SHA: req.SHA, Source: *req.Source, Build: req.Build, Port: req.Port, HealthPath: req.HealthPath,
+		CommittedAt: req.CommittedAt,
 	})
 	if err != nil {
 		s.failBuild(w, r, err)
@@ -60,6 +64,8 @@ type buildRequest struct {
 	// Deploy must be true or absent: a build exists to be deployed (the history of successful deployments is what a
 	// rollback chooses from, so an image nobody deployed must not be recorded as one).
 	Deploy *bool `json:"deploy"`
+	// CommittedAt is when the commit was made, for the lead time of a change; the agent only records it.
+	CommittedAt *time.Time `json:"committed_at"`
 }
 
 // startBuild builds the app's image from a source archive the dashboard points at, and deploys it. The answer only says
@@ -81,7 +87,7 @@ func (s *server) startBuild(w http.ResponseWriter, r *http.Request) {
 	if build.ValidSHA(req.SHA) {
 		noteAudit(r, app+" sha="+req.SHA)
 	}
-	id, _, err := s.deploy.Deployments.StartBuild(r.Context(), app, req.SHA, *req.Source)
+	id, _, err := s.deploy.Deployments.StartBuild(r.Context(), app, req.SHA, *req.Source, req.CommittedAt)
 	if err != nil {
 		s.failBuild(w, r, err)
 		return

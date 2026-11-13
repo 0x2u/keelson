@@ -53,6 +53,7 @@ Each route is described on the page linked in the last column.
 | `GET /v1/audit` | read token | [configuration](./configuration.md#editing-the-configuration-while-the-agent-runs) |
 | `GET /v1/build-vars/{app}` | read token | [builds](./builds.md#building-on-one-server-running-on-another) |
 | `GET /v1/config` | read token | [configuration](./configuration.md#editing-the-configuration-while-the-agent-runs) |
+| `GET /v1/delivery` | read token | [delivery performance](./delivery.md#the-route) |
 | `GET /v1/config/versions` | read token | [configuration](./configuration.md#editing-the-configuration-while-the-agent-runs) |
 | `GET /v1/config/versions/{id}` | read token | [configuration](./configuration.md#editing-the-configuration-while-the-agent-runs) |
 | `GET /v1/containers` | read token | [agent](./agent.md#read-only-routes) |

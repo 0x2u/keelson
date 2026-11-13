@@ -30,13 +30,15 @@ type buildCall struct {
 	app, sha string
 	pr       int
 	src      build.Source
+	// committedAt is what the caller said about the commit's time, for the lead time of a change.
+	committedAt *time.Time
 }
 
-func (f *fakeDeployments) StartBuild(_ context.Context, app, sha string, src build.Source) (string, <-chan struct{}, error) {
+func (f *fakeDeployments) StartBuild(_ context.Context, app, sha string, src build.Source, committedAt *time.Time) (string, <-chan struct{}, error) {
 	if f.buildErr != nil {
 		return "", nil, f.buildErr
 	}
-	f.builds = append(f.builds, buildCall{app: app, sha: sha, src: src})
+	f.builds = append(f.builds, buildCall{app: app, sha: sha, src: src, committedAt: committedAt})
 	return "dep3", nil, nil
 }
 

@@ -74,6 +74,7 @@ Not tested on real servers:
 - `proxy.drifted` says that the proxy no longer served what the agent had applied and was put right. It does not say what changed it, and a drift that lasts is reported once an hour.
 - The Telegram API has not been exercised in tests. The secret files of a channel must already exist on each agent.
 - Host and container statistics are kept for 24 hours and uptime for 30 days by the agent; longer history and trends are for a Prometheus scraping `/metrics` ([Metrics](reference/metrics.md)), which has no per-container CPU and memory and no histograms. There is no trend or time-to-full for the disk in the dashboard.
+- The delivery numbers (DORA) are computed from what the agent recorded: deployments it made and outages it watched, over 30 days at most. A deployment started outside Keelson is invisible, and the lead time only covers the deployments whose commit time the caller sent (the dashboard on a push or a workflow run, the deploy action, or `committed_at` in the request): the page says what share that is. A manual deploy of a tag from the dashboard sends none.
 - The dashboard colours resource usage at fixed 85 and 95 percent. The agent alerts at the configured `disk_alert_percent` and `memory_alert_percent`.
 
 ## Security and API

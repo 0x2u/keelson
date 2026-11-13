@@ -24,6 +24,7 @@ Three pieces, each optional, set under *Settings → Integrations*:
 - [Domains](./hosting.md#domains-cloudflare-dns-and-domain-checks): Cloudflare DNS records and live DNS, HTTPS and certificate checks while an app is added. The HTTPS check warns when the certificate has 14 days or fewer left and fails at 3 days or fewer (or once expired): the proxy renews certificates itself, so check that ports 80 and 443 are reachable and that DNS points at the server.
 - [Environment variables](./hosting.md#environment-variables-write-only): add, replace, delete or import a `.env` file for an app (and for its previews) without SSH. Values are write-only once saved; agent-side storage is in [Environment variables and secrets](./reference/environment.md).
 - [API tokens](./hosting.md#api-tokens-rest-api-and-mcp): scoped, expiring tokens for scripts, CI and the [MCP server](./mcp.md).
+- **Delivery**: the four DORA numbers for the whole fleet over 24 hours, 7 days or 30 days, with a line per server ([Delivery performance](./reference/delivery.md)).
 - Notifications: *Settings → Notifications* edits the agent's notification settings across servers ([Notifications](./reference/notifications.md)).
 - Server settings: configuration editing (forms and a YAML editor with validation, diff and versions), updating the agent, and removing a server ([Servers](./reference/servers.md)).
 

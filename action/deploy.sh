@@ -39,13 +39,20 @@ esac
 
 # The request body is built from validated values only, so nothing needs
 # JSON escaping and nothing can break out of the string.
+# The time of the commit, when the workflow knows it: the agent records it for the lead time of a change. Anything that
+# is not an RFC 3339 instant is left out rather than failing a deployment over a date.
+COMMITTED=""
+if [[ "${KEELSON_COMMITTED_AT:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+  COMMITTED=",\"committed_at\":\"$KEELSON_COMMITTED_AT\""
+fi
+
 if [[ -n "${KEELSON_DIGEST:-}" ]]; then
   [[ "$KEELSON_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || fail "digest must look like sha256:<64 hex characters>"
-  BODY="{\"digest\":\"$KEELSON_DIGEST\"}"
+  BODY="{\"digest\":\"$KEELSON_DIGEST\"$COMMITTED}"
   WHAT="$KEELSON_DIGEST"
 else
   [[ "${KEELSON_TAG:-}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || fail "tag is empty or contains characters Docker does not allow"
-  BODY="{\"tag\":\"$KEELSON_TAG\"}"
+  BODY="{\"tag\":\"$KEELSON_TAG\"$COMMITTED}"
   WHAT="$KEELSON_TAG"
 fi
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"time"
 
 	"github.com/0x2u/keelson/agent/internal/build"
 	"github.com/0x2u/keelson/agent/internal/config"
@@ -56,6 +57,9 @@ type launchOpts struct {
 	// elsewhere says the image runs on another server: nothing is deployed here once it is built (a build requested
 	// through POST /v1/builds, whose app is not an app of this server).
 	elsewhere bool
+	// committedAt is when the code was committed, when the caller knows it: the deployment records it for the lead
+	// time of a change.
+	committedAt *time.Time
 }
 
 // abandon gives back what a launch that never started had taken.
@@ -70,7 +74,7 @@ func (o launchOpts) abandon() {
 // nothing is pulled or pushed. A failed build fails the deployment and leaves what serves untouched.
 //
 // The token of src is held in memory for the download and nowhere else.
-func (d *Deployer) StartBuild(ctx context.Context, app, sha string, src build.Source) (string, <-chan struct{}, error) {
+func (d *Deployer) StartBuild(ctx context.Context, app, sha string, src build.Source, committedAt *time.Time) (string, <-chan struct{}, error) {
 	if d.stopping.Load() {
 		return "", nil, ErrShuttingDown
 	}
@@ -78,7 +82,7 @@ func (d *Deployer) StartBuild(ctx context.Context, app, sha string, src build.So
 	if !ok {
 		return "", nil, ErrUnknownApp
 	}
-	return d.startBuild(ctx, a, sha, src, launchOpts{})
+	return d.startBuild(ctx, a, sha, src, launchOpts{committedAt: committedAt})
 }
 
 // BuildRequest is a build another server asks this one for (POST /v1/builds): the app is whatever the request names, it
@@ -93,6 +97,8 @@ type BuildRequest struct {
 	Build      *config.Build
 	Port       int
 	HealthPath string
+	// CommittedAt is when the code was committed, for the lead time of a change; nil when the caller does not know it.
+	CommittedAt *time.Time
 }
 
 // BuildCeilings are the limits this server's builds for other servers are held to (the build_limits of its apps file).
@@ -126,7 +132,7 @@ func (d *Deployer) StartBuildRequest(ctx context.Context, req BuildRequest) (str
 			return "", nil, fmt.Errorf("%w: the app %q of this server uses the image %q", ErrBuildNameTaken, other.Name, a.Image)
 		}
 	}
-	return d.startBuild(ctx, a, req.SHA, req.Source, launchOpts{elsewhere: true})
+	return d.startBuild(ctx, a, req.SHA, req.Source, launchOpts{elsewhere: true, committedAt: req.CommittedAt})
 }
 
 func (d *Deployer) startBuild(ctx context.Context, a config.App, sha string, src build.Source, opts launchOpts) (string, <-chan struct{}, error) {
