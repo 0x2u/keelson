@@ -411,3 +411,28 @@ describe("the verdict", () => {
     expect(readinessHref(find(dash, "dashboard-backup"))).toBe("/settings/backup");
   });
 });
+
+describe("an app stopped on purpose (enabled: false)", () => {
+  const stopped = (histories: ServerReadinessInput["histories"] = { web: ok([dep("r:v2", "succeeded", 30)]) }) =>
+    serverReadiness(input({ apps: [app("web", { enabled: false }), app("api")], histories, config: ok(model({ apps: [{ name: "web", image: "i" }, { name: "api", image: "i" }] })) }), NOW);
+
+  it("has no health check or rollback target to ask for: both are not applicable, with the reason", () => {
+    const items = stopped();
+    for (const check of ["health", "rollback"] as const) {
+      expect(find(items, check, "web")).toMatchObject({ state: "na" });
+      expect(find(items, check, "web").detail).toMatch(/Stopped on purpose/);
+      expect(find(items, check, "web").action).toBeUndefined();
+    }
+  });
+
+  it("does not hide the same gaps of an app that runs", () => {
+    const items = stopped();
+    expect(find(items, "health", "api").state).toBe("todo");
+    expect(find(items, "rollback", "api").state).toBe("todo");
+  });
+
+  it("is not asked to read the history of a stopped app (a failed read is not a to-do)", () => {
+    const items = stopped({ web: { kind: "failed", reason: "timeout" } });
+    expect(find(items, "rollback", "web").state).toBe("na");
+  });
+});

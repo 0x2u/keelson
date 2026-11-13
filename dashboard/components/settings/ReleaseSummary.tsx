@@ -3,8 +3,12 @@ import { INLINE_LINK, InlineLink } from "@/components/layout";
 import { RelativeTime } from "@/components/relative-time";
 import { CodeBlock } from "@/components/servers/install-outcome";
 import { Notice } from "@/components/states";
+import { UpdateButton } from "@/components/settings/UpdateButton";
 import { releaseCheck } from "@/lib/release-check";
 import { updateCommand, type ReleaseCheck } from "@/lib/release-check-core";
+import { updaterAvailable } from "@/lib/updater";
+import { offersOneClick } from "@/lib/updater-core";
+import { dashboardVersion } from "@/lib/agent-binaries";
 
 const STATUS_TEXT = {
   newer: "newer than this dashboard",
@@ -43,7 +47,7 @@ export function UpdateSteps({ tag }: { tag: string }) {
         <InlineLink href="/settings/backup">Settings, Backup</InlineLink>.
       </li>
       <li className="space-y-2">
-        <p>Update the dashboard: run this on the machine that hosts it. It keeps your data, master key, settings and domain.</p>
+        <p>Update the dashboard: run this on the machine that hosts it, once. It keeps your data, master key, settings and domain, and sets up the one-click update: after it, updates are one click here.</p>
         <div className="w-0 min-w-full">
           <CodeBlock value={updateCommand(tag)} label="Copy the update command" />
         </div>
@@ -53,8 +57,11 @@ export function UpdateSteps({ tag }: { tag: string }) {
   );
 }
 
-/** The latest release and how this dashboard stands against it. Pure: `ReleaseStatus` supplies the check. */
-export function ReleaseSummary({ check }: { check: ReleaseCheck }) {
+/**
+ * The latest release and how this dashboard stands against it. Pure: `ReleaseStatus` supplies the check. `oneClick`: the host
+ * runs the updater, so the update is a button; otherwise the notice gives the command to run on the host.
+ */
+export function ReleaseSummary({ check, oneClick = false }: { check: ReleaseCheck; oneClick?: boolean }) {
   if (!check.enabled) {
     return (
       <div className="space-y-2" data-testid="release">
@@ -94,7 +101,15 @@ export function ReleaseSummary({ check }: { check: ReleaseCheck }) {
       )}
       {check.status === "newer" && latest && (
         <Notice tone="info" title={`Update available: ${latest.tag}`}>
-          <UpdateSteps tag={latest.tag} />
+          {oneClick ? (
+            <div className="space-y-3 text-sm" data-testid="update-one-click">
+              <p>The database is copied first, the dashboard restarts for about a minute, and it returns by itself to this version if the new one is not healthy.</p>
+              <UpdateButton tag={latest.tag} />
+              <p className="text-muted-foreground">Then update the agent of each server from its Update page.</p>
+            </div>
+          ) : (
+            <UpdateSteps tag={latest.tag} />
+          )}
         </Notice>
       )}
       <Privacy enabled />
@@ -104,5 +119,7 @@ export function ReleaseSummary({ check }: { check: ReleaseCheck }) {
 
 /** The release part of the About section: awaits the check (cached for a day, so this is slow only after a restart). */
 export async function ReleaseStatus() {
-  return <ReleaseSummary check={await releaseCheck()} />;
+  const check = await releaseCheck();
+  const oneClick = check.enabled && check.status === "newer" && offersOneClick({ running: dashboardVersion(), latest: check.latest?.tag ?? null, updater: updaterAvailable() });
+  return <ReleaseSummary check={check} oneClick={oneClick} />;
 }

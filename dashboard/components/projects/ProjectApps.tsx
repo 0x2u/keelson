@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ICONS } from "@/lib/icons";
 import { ConfigActionLink } from "@/components/config/ConfigActionLink";
+import { AppRunControls } from "@/components/AppRunControls";
 import { ContainerControls } from "@/components/ContainerControls";
 import { DeployControls } from "@/components/DeployControls";
 import { ImageRef } from "@/components/image-ref";
@@ -14,7 +15,7 @@ import type { ServerChoice } from "@/lib/project-lifecycle-core";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Deployment } from "@/lib/agent-types";
+import { appStopped, type Deployment } from "@/lib/agent-types";
 import { neverDeployed } from "@/lib/app-version-core";
 import { fromTab, placementKey, appLayout } from "@/lib/project-apps-core";
 import { placementHealth, type Placement, type Project } from "@/lib/projects-core";
@@ -38,6 +39,7 @@ export function AppCard({ placement, history, project, nested = false }: { place
   const running = history?.some((d) => d.status === "running") ?? app.last_deployment?.status === "running";
   const containerHref = container ? `/servers/${server.id}/containers/${encodeURIComponent(container.name)}` : null;
   const never = neverDeployed(app, history);
+  const stopped = appStopped(app);
   return (
     <Card className={nested ? "border-dashed" : undefined} data-testid="app-card" data-app={app.name} data-server={server.id}>
       <CardHeader className="flex flex-row flex-wrap items-center gap-2">
@@ -84,7 +86,8 @@ export function AppCard({ placement, history, project, nested = false }: { place
           </DefinitionItem>
         </DefinitionList>
         <div className="flex flex-wrap items-center gap-2">
-          {container && <ContainerControls serverId={server.id} name={container.name} state={container.state} managed canDeploy={server.canDeploy} deploying={running} />}
+          <AppRunControls serverId={server.id} app={app.name} stopped={stopped} hasContainer={container !== null} canDeploy={server.canDeploy} deploying={running} />
+          {container && <ContainerControls serverId={server.id} name={container.name} state={container.state} managed canDeploy={server.canDeploy} deploying={running} stopped={stopped} />}
           <DeployControls
             serverId={server.id}
             app={app.name}
@@ -94,6 +97,7 @@ export function AppCard({ placement, history, project, nested = false }: { place
             history={history}
             neverDeployed={never}
             source={null}
+            stopped={stopped}
           />
           {containerHref && (
             <Button asChild variant="outline" size="sm">

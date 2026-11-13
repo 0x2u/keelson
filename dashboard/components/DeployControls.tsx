@@ -17,6 +17,7 @@ import { ChoiceList } from "@/components/projects/ChoiceList";
 import { RelativeTime } from "@/components/relative-time";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { STOPPED_REASON } from "@/lib/app-run-core";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DisabledWithReason, GatedButton } from "@/components/GatedButton";
 import { StepUpAction } from "@/components/unlock";
@@ -392,6 +393,7 @@ export function DeployControls({
   source,
   initialRef,
   initialRollback = false,
+  stopped = false,
 }: {
   serverId: string;
   app: string;
@@ -405,11 +407,13 @@ export function DeployControls({
   initialRef?: string;
   /** The `?rollback=1` of the page (the command palette's "Roll back"): opens the roll back confirmation. Nothing is rolled back until it is confirmed. */
   initialRollback?: boolean;
+  /** The app is stopped on purpose (`enabled: false`): Deploy and Roll back are off until it is started. */
+  stopped?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [deployOpen, setDeployOpen] = useState(initialRef !== undefined);
-  const blocked = running ? "A deployment is running. Wait for it to finish before starting another." : null;
+  const blocked = stopped ? STOPPED_REASON : running ? "A deployment is running. Wait for it to finish before starting another." : null;
   const plan = history === null ? null : rollbackPlan(history, current);
   const rollbackReason = blocked ?? (plan !== null && !plan.ok ? plan.reason : null);
   // Without a target the dialog is never offered: the button says why instead.

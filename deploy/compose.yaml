@@ -8,7 +8,9 @@ services:
     image: ${KEELSON_IMAGE:-ghcr.io/0x2u/keelson-dashboard}:${KEELSON_VERSION:-latest}
     restart: unless-stopped
     ports: ["127.0.0.1:${KEELSON_PORT:-3000}:3000"] # this machine only: reach it from elsewhere through HTTPS (compose.tls.yaml) or `ssh -L 3000:127.0.0.1:3000`
-    volumes: ["data:/data"] # the database and the master key: back it up (Settings, Backup)
+    volumes:
+      - data:/data # the database and the master key: back it up (Settings, Backup)
+      - ./run:/run/keelson:z # where the dashboard asks the host's updater for an update (install.sh sets the updater up); relative to this file
     environment:
       KEELSON_INSECURE_COOKIES: "true" # plain http on the loopback address; compose.tls.yaml turns it off
     env_file: [{ path: dashboard.env, required: false }]

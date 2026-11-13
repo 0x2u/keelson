@@ -51,14 +51,19 @@ func healthBudget(a config.App) time.Duration {
 }
 
 // soakBudget is the time from the traffic switch to the end of the deployment: the drain, the soak with its last round
-// of requests, the stop of the previous container or the way back to it, and the cleanup.
+// of requests, the stop of the previous container or the way back to it, and the cleanup. With a canary it also holds the
+// steps, each watched like a soak (a canary is judged from its first step on, so its time is part of this phase).
 func soakBudget(a config.App) time.Duration {
 	rounds := time.Duration(len(a.Verify)+1) * 2 * probeTimeout
 	if a.Analysis != nil {
 		// a round that is late for the deadline still asks each metric once more: the budget holds two slow rounds
 		rounds += time.Duration(len(a.Analysis.Metrics)) * 2 * metricTimeout
 	}
-	return a.DrainFor() + a.SoakFor() + rounds + 2*a.Stop() + cleanupTimeout
+	watches := time.Duration(1)
+	if a.Canary != nil {
+		watches += time.Duration(len(a.Canary.Steps))
+	}
+	return a.DrainFor() + a.SoakFor() + a.CanaryTime() + watches*rounds + 2*a.Stop() + cleanupTimeout
 }
 
 // deployBudget bounds the whole deployment (everything after the build): the sum of the budgets of its phases.

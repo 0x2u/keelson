@@ -56,6 +56,11 @@ type App struct {
 	Project string `yaml:"project"`
 	// Stage is the environment (the field is named so because App already has an Environment method).
 	Stage string `yaml:"environment"`
+	// Enabled false stops the app and keeps it stopped: its container is stopped (never removed) and the agent stops
+	// it again if anything starts it, while the config, image, env, volumes, data and history stay. Its domains answer
+	// 503 meanwhile, it raises no app.down and counts as no outage. Absent or true: the app runs as usual. To start it
+	// again, remove the key (or set true) and start the container. Not for a build-only app, which has no container.
+	Enabled *bool `yaml:"enabled"`
 	// Image is the repository without tag or digest. Deploy requests only
 	// choose the tag or digest, never the repository: whoever can call the
 	// deploy API cannot make the agent run an arbitrary image.
@@ -115,6 +120,9 @@ type App struct {
 	// is watched; if it fails the traffic goes back to the previous version. Default 30s; 0s turns it off. Only for
 	// blue/green apps.
 	Soak *Duration `yaml:"soak"`
+	// Canary replaces the single traffic switch by a progression of shares of visitors, each watched, with a return
+	// to the previous version when one fails. Caddy only. See Canary.
+	Canary *Canary `yaml:"canary"`
 	// Verify lists pages requested on the new container during the soak, next to health_path.
 	Verify []Verify `yaml:"verify"`
 	// Analysis judges the new version by Prometheus queries during the soak and rolls back when they leave their bounds.
@@ -136,6 +144,9 @@ type App struct {
 	// read from the file. It tells the deployer which managed variables (the parent's preview scope) apply.
 	Parent string `yaml:"-"`
 }
+
+// IsEnabled is false only for an app the file stops with enabled: false.
+func (a App) IsEnabled() bool { return a.Enabled == nil || *a.Enabled }
 
 // Stop is the grace period before a container of the app is killed.
 func (a App) Stop() time.Duration {
@@ -428,6 +439,9 @@ func (c *Config) validateApp(a *App, seen map[string]bool) error {
 		return err
 	}
 	if err := validateSoak(a); err != nil {
+		return err
+	}
+	if err := c.validateCanary(a); err != nil {
 		return err
 	}
 	return validateAnalysis(a)

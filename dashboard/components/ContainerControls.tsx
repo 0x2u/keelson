@@ -22,6 +22,7 @@ export function ContainerControls({
   managed,
   canDeploy,
   deploying = false,
+  stopped = false,
   initialAction,
 }: {
   serverId: string;
@@ -31,12 +32,14 @@ export function ContainerControls({
   canDeploy: boolean;
   /** A deployment of the app is running: it is replacing the container. */
   deploying?: boolean;
+  /** The app is stopped on purpose (`enabled: false`): it is started with the app's Start, not from its container. */
+  stopped?: boolean;
   /** The `?restart=1` / `?start=1` of the page (the command palette's actions): Restart asks at once, Start takes the keyboard focus. Nothing happens until the operator confirms or presses it. */
   initialAction?: "start" | "restart";
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const controls = containerControls(state, { managed, canDeploy, deploying });
+  const controls = containerControls(state, { managed, canDeploy, deploying, stopped });
   const [confirming, setConfirming] = useState(initialAction === "restart" && controls.restart);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();

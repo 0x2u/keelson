@@ -36,8 +36,9 @@ func TestContainerActionFailuresHaveTheirOwnStatus(t *testing.T) {
 		"busy":      deploy.ErrBusy,
 		"bad":       docker.ErrInvalidID,
 		"broken":    &docker.Error{Status: 500, Message: "secret engine detail"},
+		"stopped":   &deploy.StoppedError{App: "shop"}, // the file stops the app: it would be stopped again at the next reconcile
 	}
-	for name, want := range map[string]int{"ghost": 404, "portainer": 409, "busy": 409, "bad": 400, "broken": 502} {
+	for name, want := range map[string]int{"ghost": 404, "portainer": 409, "busy": 409, "bad": 400, "broken": 502, "stopped": 409} {
 		for _, act := range []string{"start", "restart"} {
 			resp, body := e.signed(t, "POST", "/v1/containers/"+name+"/"+act, "", "")
 			if resp.StatusCode != want {
@@ -46,10 +47,13 @@ func TestContainerActionFailuresHaveTheirOwnStatus(t *testing.T) {
 			if strings.Contains(body, "secret engine detail") {
 				t.Errorf("engine details leak: %s", body)
 			}
+			if name == "stopped" && !strings.Contains(body, "app shop is stopped (enabled: false)") {
+				t.Errorf("%s: the answer must say why: %s", act, body)
+			}
 		}
 	}
 	log, _ := e.st.Audit(t.Context(), 20, 0)
-	if len(log) != 10 || log[0].Status == 204 {
+	if len(log) != 12 || log[0].Status == 204 {
 		t.Errorf("a refused request is audited with its status too: %d %+v", len(log), log[0])
 	}
 }

@@ -146,7 +146,7 @@ export interface AlertRecord {
 export type DeploymentStatus = "running" | "succeeded" | "failed" | "rolled_back" | "rollback_failed";
 
 /** The phases of a deployment, in pipeline order. */
-export type PhaseName = "source" | "build" | "release" | "switch" | "soak" | "live";
+export type PhaseName = "source" | "build" | "release" | "switch" | "canary" | "soak" | "live";
 
 /** One phase a deployment reached (or deliberately skipped); `finished_at` is absent while it runs. */
 export interface DeploymentPhase {
@@ -200,7 +200,16 @@ export interface AppStatus {
   env_changed_at?: string;
   /** The public hostnames the proxy routes to the app; absent when it has none and for an agent that does not report them. */
   domains?: string[];
+  /**
+   * `false`: the app is stopped on purpose (`enabled: false` in the apps file): its container is stopped and stays so, its
+   * domains answer 503, and nothing about it is an outage. Absent from an agent older than the key: it is running as usual
+   * (read it with `appStopped`).
+   */
+  enabled?: boolean;
 }
+
+/** The app is stopped on purpose (`enabled: false`); an agent that does not report the key runs everything. */
+export const appStopped = (app: Pick<AppStatus, "enabled">): boolean => app.enabled === false;
 
 export interface ProxyRoute {
   /** "app" for a blue/green app, "site" for a `proxy.sites` entry (static files, a fixed upstream or a redirect). */
@@ -610,6 +619,14 @@ export interface AnalysisConfig {
   metrics: MetricGateConfig[];
 }
 
+/** A canary rollout: the share of visitors (percent) the new version receives, one step after the other, before it takes all. */
+export interface CanaryConfig {
+  /** Rising percentages, 1 to 99, one to five of them. */
+  steps: number[];
+  /** How long each step is watched; the agent's default is 1m, 10s to 10m allowed. */
+  hold?: string;
+}
+
 export interface AppConfig {
   name: string;
   project?: string;
@@ -633,6 +650,10 @@ export interface AppConfig {
   verify?: { path: string; status?: number }[];
   /** Prometheus queries that judge the new version during the soak: out of bounds a few times in a row, traffic goes back. */
   analysis?: AnalysisConfig;
+  /** Gradual rollout of the new version on a Caddy proxy; absent is a single switch. */
+  canary?: CanaryConfig;
+  /** `false` keeps the app stopped (container stopped, domains answer 503) with everything else kept; absent or true runs it. Not valid on an app without a container. */
+  enabled?: boolean;
   domains?: string[];
   port?: PortConfig;
   health_path?: string;

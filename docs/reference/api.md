@@ -29,7 +29,9 @@ sig=$(printf '%s\n%s\n%s\n%s' "$ts" POST "$path" "$bodyhash" | openssl dgst -sha
 curl -X POST -H "X-Keelson-Timestamp: $ts" -H "X-Keelson-Signature: $sig" -d "$body" http://127.0.0.1:7070$path
 ```
 
-Errors are JSON, `{"error": "..."}`, with the usual status codes (`400` a bad request, `401` bad credentials or signature, `404`, `409` a conflicting operation is running, `429`, `503`). A signed request on a full disk answers `507`.
+Errors are JSON, `{"error": "..."}`, with the usual status codes (`400` a bad request, `401` bad credentials or signature, `404`, `409` a conflicting operation is running, or a deployment, rollback or build of an app the file stops with `enabled: false` (`app <name> is stopped (enabled: false): start it first`, see [Stopping an app](./deployments.md#stopping-an-app)), `429`, `503`). A signed request on a full disk answers `507`.
+
+`GET /v1/apps` lists every app with `enabled`, a boolean that is always present: `false` only for an app the file stops with `enabled: false` ([Stopping an app](./deployments.md#stopping-an-app)).
 
 ## All routes
 

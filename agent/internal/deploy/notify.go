@@ -145,6 +145,10 @@ func (d *Deployer) Observe(ctx context.Context) ([]notify.AppState, error) {
 	cfg := d.config()
 	out := make([]notify.AppState, 0, len(cfg.Apps))
 	for _, a := range cfg.Apps {
+		if !a.IsEnabled() {
+			out = append(out, notify.AppState{Name: a.Name, Stopped: true}) // its container is none of the watcher's business
+			continue
+		}
 		det, err := d.liveContainer(ctx, a)
 		if err != nil {
 			return nil, err

@@ -6,6 +6,7 @@ package config
 // that cover what they were allowed.
 
 import (
+	"errors"
 	"fmt"
 
 	"gopkg.in/yaml.v3"
@@ -28,6 +29,9 @@ func validateBuildOnly(a *App) error {
 		if f.set {
 			return fmt.Errorf("build.only: %s describes a running container, and nothing runs here: put it on the app that runs the image", f.name)
 		}
+	}
+	if !a.IsEnabled() {
+		return errors.New("build.only: enabled: false stops a container, and nothing runs here: remove it")
 	}
 	return nil
 }

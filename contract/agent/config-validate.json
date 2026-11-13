@@ -3,7 +3,7 @@
     {
       "code": "deprecated",
       "file": "apps.yaml",
-      "line": 68,
+      "line": 69,
       "message": "run is deprecated: use host",
       "path": "apps[shop].release.steps[warm].run",
       "severity": "warning"

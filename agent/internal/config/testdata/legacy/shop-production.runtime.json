@@ -6,6 +6,7 @@
       "project": "shop",
       "effective_project": "shop",
       "environment": "production",
+      "enabled": true,
       "image": "keelson-local/shop",
       "env_file": "/var/www/shop/.env",
       "env": {
@@ -24,6 +25,7 @@
       "stable_after_explicit": false,
       "drain_seconds": 10,
       "soak_seconds": 60,
+      "canary": null,
       "verify": [
         {
           "path": "/",

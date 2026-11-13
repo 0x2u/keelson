@@ -68,6 +68,8 @@ const NO_UNLOCK: Record<string, string> = {
   "actions.ts:deployAction": "deploys a tag or digest of the app's configured image: day-to-day work (step-up-core.ts header)",
   "actions.ts:rollbackAction": "goes back to a version that already ran: day-to-day work",
   "actions.ts:runJobAction": "runs a job as configured; the job's definition is what is guarded (jobChange)",
+  "app-run-actions.ts:startAppAction": "clears `enabled` of an app the operator stopped and starts its container: what runs is what was configured, day-to-day work",
+  "app-run-actions.ts:stopAppAction": "sets `enabled: false`: only takes work away, nothing about what runs or where traffic goes changes, and Start undoes it",
   "container-actions.ts:containerAction": "start or restart of a container that exists: day-to-day work",
   "projects-actions.ts:promoteAction": "deploys the digest serving in one environment to another: a deployment, day-to-day work",
   "github-actions.ts:buildAction": "builds and deploys the linked repository's commit: a deployment; the link and the build: block are guarded",

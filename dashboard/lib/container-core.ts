@@ -1,4 +1,5 @@
 import type { Container } from "@/lib/agent-types";
+import { STOPPED_REASON } from "@/lib/app-run-core";
 
 /** The label the agent puts on every container it manages; the agent refuses to start or restart one without it. */
 export const APP_LABEL = "keelson.app";
@@ -17,9 +18,11 @@ export interface ContainerControls {
  * secret (the routes are signed) and while no deployment replaces the container, Start when it is not running and
  * Restart when it is.
  */
-export function containerControls(state: { running: boolean; restarting?: boolean; paused?: boolean }, opts: { managed: boolean; canDeploy: boolean; deploying?: boolean }): ContainerControls {
+export function containerControls(state: { running: boolean; restarting?: boolean; paused?: boolean }, opts: { managed: boolean; canDeploy: boolean; deploying?: boolean; stopped?: boolean }): ContainerControls {
   if (!opts.managed) return { start: false, restart: false, reason: "Keelson does not manage this container: it has no app label." };
   if (!opts.canDeploy) return { start: false, restart: false, reason: "This server is read-only here: it has no deploy secret in the dashboard." };
+  // Stopped on purpose (`enabled: false`): a container started by hand would run an app the apps file says is stopped. Start the app instead.
+  if (opts.stopped) return { start: false, restart: false, reason: STOPPED_REASON };
   if (opts.deploying) return { start: false, restart: false, reason: "A deployment is running: it is replacing this container. Wait for it to finish." };
   if (state.paused) return { start: false, restart: false, reason: "The container is paused." };
   const up = state.running || state.restarting === true;

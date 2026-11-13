@@ -122,7 +122,7 @@ const deployment = shape({
   error: opt(str),
   finished_at: opt(str),
   serving_ref: opt(str),
-  phases: opt(list(shape({ name: oneOf("source", "build", "release", "switch", "soak", "live"), status: oneOf("running", "done", "failed", "skipped"), started_at: str, finished_at: opt(str) }))),
+  phases: opt(list(shape({ name: oneOf("source", "build", "release", "switch", "canary", "soak", "live"), status: oneOf("running", "done", "failed", "skipped"), started_at: str, finished_at: opt(str) }))),
 });
 
 const container = shape({ id: str, name: str, image: str, image_id: str, command: str, created: num, state: str, status: str, labels: dict(str), ports: list(port) });
@@ -139,6 +139,8 @@ const app = shape({
   last_deployment: nullable(deployment),
   env_changed_at: opt(str),
   domains: opt(strings),
+  // Always sent by the agent. AppStatus.enabled stays optional in the types: an older agent does not send it and its apps run.
+  enabled: bool,
 });
 
 const jobRun = shape({ id: str, job: str, trigger: oneOf("schedule", "manual", "catch-up"), status: oneOf("running", "succeeded", "failed", "skipped", "missed"), started_at: str, detail: opt(str), output: opt(str), finished_at: opt(str) });
@@ -306,6 +308,8 @@ const appConfig = shape(
     drain: opt(durations),
     soak: opt(durations),
     verify: opt(list(shape({ path: str, status: opt(num) }))),
+    canary: opt(shape({ steps: list(num), hold: opt(durations) })),
+    enabled: opt(bool),
     analysis: opt(
       shape({
         address: opt(str),

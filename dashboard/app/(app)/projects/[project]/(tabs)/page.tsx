@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ChevronDownIcon } from "lucide-react";
 import { PageSection } from "@/components/layout";
 import { hubPage, loadProjectHub } from "@/lib/project-hub";
+import { appStopped } from "@/lib/agent-types";
 import { hubSummary } from "@/lib/project-hub-core";
 import { projectTabs } from "@/lib/nav-core";
 import { appSourceHref, appVariablesHref } from "@/lib/redirects-core";
@@ -37,7 +38,8 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
   const { context, feed, builds, primary } = page;
   const view = page.project;
   const envs = project.environments;
-  const first = (e: Environment) => e.placements[0];
+  // Like the environment row: a stopped app (enabled: false) only stands for the environment when all of its apps are stopped.
+  const first = (e: Environment) => e.placements.find((p) => !appStopped(p.app)) ?? e.placements[0];
   const allPairs = envs.flatMap((from) => envs.filter((to) => to.name !== from.name).map((to) => ({ from, to })));
   // An environment with nothing running has nothing to promote: it only gets a line when no pair is left.
   const pairs = allPairs.some((p) => first(p.from).app.container) ? allPairs.filter((p) => first(p.from).app.container) : allPairs;

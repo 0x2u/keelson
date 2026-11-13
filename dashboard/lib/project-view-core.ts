@@ -1,4 +1,4 @@
-import type { Deployment, DeploymentPhase } from "@/lib/agent-types";
+import { appStopped, type Deployment, type DeploymentPhase } from "@/lib/agent-types";
 import { envPending } from "@/lib/env-core";
 import { commitKey, commitOfRef, fullCommitOfRef, type CommitInfo, type CommitRef } from "@/lib/github-core";
 import { splitRef } from "@/lib/image-ref-core";
@@ -153,15 +153,19 @@ export interface EnvironmentView {
   variablesBehind: boolean;
 }
 
-/** An environment is shown by its first app (one per server it runs on, in server name order). */
+/**
+ * An environment is shown by its first app (one per server it runs on, in server name order); a stopped one (`enabled: false`)
+ * only when every app of the environment is stopped, so a mixed environment is judged on the apps that run.
+ */
 export function environmentView(env: Environment, ctx: ProjectContext): EnvironmentView {
-  const first = env.placements[0];
+  const first = env.placements.find((p) => !appStopped(p.app)) ?? env.placements[0];
   const { server, app } = first;
   const key = appKey(server.id, app.name);
   const source = ctx.sources[key];
   const history = ctx.deployments[key];
   const deployed = servingDeployment(first, history);
   const state = environmentState(app);
+  const stopped = appStopped(app);
   return {
     name: env.name,
     servers: env.placements.map((p) => p.server),
@@ -170,9 +174,9 @@ export function environmentView(env: Environment, ctx: ProjectContext): Environm
     state,
     domain: primaryDomain(app.domains),
     domains: (app.domains ?? []).filter((d) => !d.startsWith("*.")),
-    localAddresses: primaryDomain(app.domains) === null && app.container !== null && state.label !== "Down" ? publishedAddresses(app.container.ports, server.host ?? null) : [],
+    localAddresses: primaryDomain(app.domains) === null && app.container !== null && state.label !== "Down" && !stopped ? publishedAddresses(app.container.ports, server.host ?? null) : [],
     serving: app.container ? describeRef(app.container.image, source, ctx.commits) : null,
-    serves: app.container !== null && state.label !== "Down",
+    serves: app.container !== null && state.label !== "Down" && !stopped,
     deployed: deployed && describeDeployment(deployed, source, ctx.commits),
     latest: app.last_deployment ? describeDeployment(app.last_deployment, source, ctx.commits) : null,
     variablesBehind: envPending(app, history ?? null) !== null,

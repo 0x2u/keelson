@@ -124,7 +124,8 @@ describe("each tab page loads only its own data", () => {
 
   it("Overview reads what it shows (health, apps, deployments, disk) but never the jobs, databases or proxy", async () => {
     await OverviewPage({ params, searchParams: Promise.resolve({}) });
-    expectOnly("serverInfo", "serverSystem", "serverContainers", "serverDisk", "serverHostHistory");
+    // serverApps: the health card tells a container stopped on purpose (enabled: false) from one that died.
+    expectOnly("serverInfo", "serverSystem", "serverContainers", "serverApps", "serverDisk", "serverHostHistory");
     // Its sections load the rest when they render.
     loaders.serverSnapshot.mockImplementation(() => Promise.resolve({ server: SERVER, reachable: true, lastSeen: NOW } satisfies ServerSnapshot));
     const { AppsSection, DeploymentsSection } = await import("@/components/servers/ServerOverview");

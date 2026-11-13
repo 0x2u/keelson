@@ -42,3 +42,17 @@ describe("the sidebar's dot for a project", () => {
     expect(projectDots([{ server: server("1"), apps: null }, { server: server("2") }])).toEqual([]);
   });
 });
+
+describe("the dot of a project with a stopped app (enabled: false)", () => {
+  it("is Stopped, muted, when every app of the project is stopped", () => {
+    const dots = projectDots([{ server: server("1"), apps: [app("web", { enabled: false }, STOPPED)] }]);
+    expect(dots).toEqual([{ name: "web", tone: "muted", label: "Stopped" }]);
+  });
+
+  it("is judged on the apps that run in a mixed project", () => {
+    const stopped = app("web-staging", { project: "shop", environment: "staging", enabled: false }, STOPPED);
+    expect(projectDots([{ server: server("1"), apps: [app("web", { project: "shop" }), stopped] }])[0]).toMatchObject({ tone: "success", label: "Running" });
+    // The running one is the broken one: the stopped one does not soften it, and the same app stopped by accident would not be muted.
+    expect(projectDots([{ server: server("1"), apps: [app("web", { project: "shop" }, STOPPED), stopped] }])[0]).toMatchObject({ tone: "danger" });
+  });
+});

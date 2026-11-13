@@ -18,6 +18,7 @@ apps:
   - name: web
     project: shop                # optional labels for the dashboard's Projects view (default: the app's name, and "production")
     environment: production
+    enabled: true                # false stops the app and keeps it stopped: see "Stopping an app" (default true)
     image: ghcr.io/acme/web        # repository only: no tag, no digest
     env_file: /srv/web/.env      # KEY=VALUE lines; no interpolation
     env: { NODE_ENV: production }  # wins over env_file; variables set through the API win over both
@@ -65,7 +66,7 @@ Docker can give a restarted container another random host port. The agent compar
 
 ## Phases and failures
 
-A deployment records the phases it went through, so the dashboard can draw the pipeline *Source → Build → Release → Switch → Soak → Live* instead of a flat log. `GET /v1/deployments` and `GET /v1/deployments/{id}` (and `last_deployment` in `GET /v1/apps`) carry `"phases": [{"name", "status": "running|done|failed|skipped", "started_at", "finished_at"}]` in order, only for the phases the deployment reached or deliberately skipped: `source` (downloading the source archive) and `build` only for a build; `release` (fetching the image, then the release steps: `check-env`, `backup`, `migrate`), `skipped` for a roll back unless the app sets `on_rollback`; `switch` (starting the new container, the health gate, the traffic switch and the drain; for an app deployed in place: stop the old one, start the new one, health); `soak` (`skipped` when the app has none, absent in place); `live` (stopping the previous version, pruning). The phase that was running when the deployment failed is `failed` and nothing after it is listed; the restore of the previous version belongs to it. Events carry a `"phase"` (replay and SSE). `"serving_ref"` is set when the deployment ends: the image that serves afterwards (the deployment's own on success, `previous_ref` after `failed` before the switch or `rolled_back`), and absent when nothing known serves. Rows from before this existed have none of these fields. Notifications use the trigger: `<app> deployed <version>`, `<app> rolled back to <version>`, `<app>: deploy failed` (with *<version> is still serving*), `<app>: deploy rolled back`, `<app>: rollback failed`.
+A deployment records the phases it went through, so the dashboard can draw the pipeline *Source → Build → Release → Switch → Canary → Soak → Live* instead of a flat log. `GET /v1/deployments` and `GET /v1/deployments/{id}` (and `last_deployment` in `GET /v1/apps`) carry `"phases": [{"name", "status": "running|done|failed|skipped", "started_at", "finished_at"}]` in order, only for the phases the deployment reached or deliberately skipped: `source` (downloading the source archive) and `build` only for a build; `release` (fetching the image, then the release steps: `check-env`, `backup`, `migrate`), `skipped` for a roll back unless the app sets `on_rollback`; `switch` (starting the new container, the health gate, the traffic switch and the drain; with a [canary](#canary-sharing-the-traffic-step-by-step) only the first two; for an app deployed in place: stop the old one, start the new one, health); `canary` (only for an app with a `canary:` block that had a version to share with: the steps, then the traffic switch and the drain that follow them); `soak` (`skipped` when the app has none, absent in place); `live` (stopping the previous version, pruning). The phase that was running when the deployment failed is `failed` and nothing after it is listed; the restore of the previous version belongs to it. Events carry a `"phase"` (replay and SSE). `"serving_ref"` is set when the deployment ends: the image that serves afterwards (the deployment's own on success, `previous_ref` after `failed` before the switch or `rolled_back`), and absent when nothing known serves. Rows from before this existed have none of these fields. Notifications use the trigger: `<app> deployed <version>`, `<app> rolled back to <version>`, `<app>: deploy failed` (with *<version> is still serving*), `<app>: deploy rolled back`, `<app>: rollback failed`.
 
 When the new container was started and then failed (it exited, restarted in a loop, turned unhealthy, did not answer its `health_path`), its last output is read before it is removed and stored in the deployment's log as events of level `output`, one per line: at most the last 200 lines and 32 KiB (a line is cut at 4 KiB), introduced by an `info` event ("last output of ..."), or by a note that it printed nothing. The output is the app's own stdout and stderr, stored as it is: the agent filters no secret from it. Reading is bounded to 10 s and never fails the deployment. A restored previous version that fails as well has its output recorded the same way. The output of a failed release step is already in the log, line by line, prefixed by the step's name.
 
@@ -124,11 +125,65 @@ apps:
 - **What counts as bad.** A value outside the bounds. A query that fails (Prometheus down, a timeout of 10 s, a syntax error, an answer that is not a number) counts as bad too: a gate that cannot be asked cannot vouch for the version. No data passes by default, since an app nobody has called has no error rate; `no_data: fail` makes it bad. A good evaluation resets the run, so one noisy sample does not roll back a deployment.
 - **Variables.** `{{app}}`, `{{container}}` (the new container's name) and `{{version}}` (the image reference being deployed) are replaced in the query, escaped for a PromQL string. Use them to tell the new version from the previous one, which still serves part of the soak: with the same label on both, a rate mixes them.
 - **What you see.** The deployment's events say what each metric answered the first time and every time it changes, each bad evaluation with its count (`metric error-rate: 0.12, above the maximum 0.02 (2 of 3)`), and a summary when the soak holds. The error of a rolled back deployment names the metric, the value and the bound.
-- **What it needs.** The Prometheus must be reachable from the agent, not from the dashboard: the queries are made by the agent, at the address you give (no credentials in it: put a local proxy that adds them in front). It is only for blue/green apps (an app with `port` or `domains`) with a soak above `0s`; a preview instance does not inherit it.
+- **What it needs.** The Prometheus must be reachable from the agent, not from the dashboard: the queries are made by the agent, at the address you give (no credentials in it: put a local proxy that adds them in front). It is only for blue/green apps (an app with `port` or `domains`) with a soak above `0s` or a [canary](#canary-sharing-the-traffic-step-by-step), where every step is judged by it; a preview instance does not inherit it.
 
 `keelson-agent config validate` checks the structure and every rule above. It does not ask Prometheus: try each query in its UI first, and check that it returns one number.
 
 It is tested end to end against a real Prometheus and a real Docker engine (`TestRealMetricGateAgainstPrometheus`): a version whose pages all answer 200 but whose exported metric is bad is rolled back.
+
+## Canary: sharing the traffic step by step
+
+A switch gives the new version every visitor at once and relies on the soak to take them back if it turns out bad. A canary gives it a few visitors first. The new version receives a share of them, is watched, receives more, and takes everything only after the last step held. A step that fails sends every visitor back to the previous version, which never stopped.
+
+A complete file, with two metric gates, is [`docs/examples/canary.apps.yaml`](../examples/canary.apps.yaml).
+
+```yaml
+proxy:
+  acme_email: ops@example.com
+apps:
+  - name: shop
+    image: ghcr.io/acme/shop
+    domains: [www.shop.example]
+    port: 3000
+    health_path: /api/health
+    soak: 30s
+    canary:
+      steps: [10, 50]                    # percent of the visitors: 10%, then 50%, then everyone
+      hold: 2m                           # how long each step is watched (default 1m, 10s to 10m)
+    verify:
+      - {path: /}
+```
+
+- **What a step does.** The proxy is told to send `steps[i]` percent of the visitors to the new container and the rest to the previous one, then the new version is watched for `hold` exactly like a soak: its container, `health_path`, each `verify` page and, when the app has an [`analysis`](#metric-gates-judging-the-new-version-by-your-metrics), each metric. Every step is judged afresh, with its own run of evaluations. After the last step the proxy switches to the new version alone, the drain runs, and the usual soak follows, still with the previous version running.
+- **A visitor stays on one version.** The share is of visitors, not of requests. Caddy gives a browser a version the first time it comes in a step and keeps it there with a cookie (`keelson_canary`), so a page and the assets it points to (hashed bundles of a front-end build) come from the same version. Someone who sends no cookie (a script, `curl`) is drawn at every request. Each step is a new draw: a cookie from an earlier step or an earlier rollout never matches, and the visitors are shared again by the new percentage. The weights are a cycle of 100, so out of every 100 new visitors exactly `steps[i]` get the new version.
+- **What you see.** The pipeline gets a *Canary* step between *Switch* and *Soak*. The events say `canary 10%: 10% of the visitors go to the new version`, then what each watch found, and `the new version held at every step of the canary` before the switch. A step that fails ends the deployment as `rolled_back`, its error starts with `the canary failed: canary 50%:` and names the page or the metric. The new container's last output is kept as for any failed container.
+- **What it needs.** A blue/green app on the Caddy proxy: nginx cannot keep a visitor on one version, and the apps file refuses `canary` with it. `steps` has 1 to 5 percentages from 1 to 99, rising (100 is the end of the rollout, it needs no step). The first deployment of an app has nothing to share with and goes live at once. A preview instance does not inherit it. Two copies of the app run for `steps × hold`, plus the soak: size `hold` for the memory of the server.
+- **If the agent stops.** The share lives in the agent's memory, on purpose. An agent that restarts mid-rollout comes back with `app_state`, which names the version that served: its reconciler puts every visitor back on it, and the new container, now an orphan, is removed with the deployment reported as interrupted.
+
+Because a canary judges numbers and not traffic, the metric is only as good as its labels at telling the new container from the previous one: use `{{container}}` or `{{version}}` in the query. It is tested end to end against a real Docker engine and a real Caddy (`TestRealCanaryOnARealEngineAndARealCaddy`): fifty visitors keep asking a site while a good version is shared 20% then 60% and then takes everything (none is refused), and a version that breaks at its first step is taken back by everyone.
+
+## Stopping an app
+
+`enabled: false` stops an app without deleting it. Use it for a test app left on a server, or one you want off for a while:
+
+```yaml
+apps:
+  - name: demo
+    image: ghcr.io/acme/demo
+    domains: [demo.example.com]
+    port: 3000
+    enabled: false          # remove the key (or set true) to run it again
+```
+
+Starting from the file is the desired state: the agent stops what runs and keeps it stopped, and starts nothing by itself.
+
+- **What stops.** Every running container of the app is stopped with the app's `stop_timeout`, at once when the file is applied and again at each reconcile (every 10 s), so a container started by hand with `docker start`, or by Docker's restart policy after a reboot, is stopped again within seconds. A deployment under way is not fought with: it ends, and the app is stopped at the next tick. Nothing is removed: the container, its image, `env`, `volumes`, the data in them, the deployment history and the configuration stay.
+- **What visitors see.** The app's `domains` answer `503` with the text `This app is stopped.` (Caddy); with nginx the app's upstream stays in the file marked `down`, which is what nginx already does for an app nothing serves. A stopped app that was never deployed answers the same.
+- **No outage, no alert.** A stopped app raises no `app.down` ([Notifications](./notifications.md)), is not an outage in `GET /v1/apps/{app}/availability` or in the time to restore of [Delivery performance](./delivery.md) (an outage that was open when it was stopped ends at that moment; the time stopped counts as up), and has no `keelson_app_up` series, so an alert on `keelson_app_up == 0` does not fire ([Metrics](./metrics.md)). `keelson_app_enabled` says 0 for it.
+- **What is refused.** A deployment, a rollback, a build of the app and the start or restart of its container answer `409` with `app <name> is stopped (enabled: false): start it first`. It makes no [preview](./previews.md), and a preview instance never inherits `enabled`. `enabled: false` on a build-only app (`build.only`) is a configuration error: it has no container.
+- **Starting it again.** Remove the key (or set `enabled: true`) in the file, or through the [configuration API](./configuration.md#editing-the-configuration-while-the-agent-runs), then start the container: `POST /v1/containers/{name}/start` (the dashboard does both). Changing the file does not start anything; the proxy picks the app up again after the start like any started container, and the next deployment deploys as usual. `GET /v1/apps` lists `enabled` for every app so that a client can tell a stopped app from a crashed one.
+
+It is tested end to end against a real Docker engine and a real Caddy (`TestRealStoppedAppOnARealEngineAndARealCaddy`): the file stops the app, the container stops and is kept, the host answers `503` with no drift in Caddy, a deployment is refused, a container started by hand is stopped again, and after the key is removed and the container started the host serves again.
 
 ## What a request chooses
 
@@ -203,12 +258,12 @@ The agent tidies the disk by default:
 
 | Route | Auth | Description |
 |---|---|---|
-| `POST /v1/apps/{app}/deploy` | signature | Body `{"tag":"..."}` or `{"digest":"sha256:..."}`, and optionally `"trigger": "promotion"` (default `"api"`; anything else is refused) for a version moved from another environment: it is recorded in the deployment's history. Answers `202 {"deployment_id"}`. |
+| `POST /v1/apps/{app}/deploy` | signature | `409` when the app is [stopped](#stopping-an-app) (`enabled: false`), like `rollback` and `build`. Body `{"tag":"..."}` or `{"digest":"sha256:..."}`, and optionally `"trigger": "promotion"` (default `"api"`; anything else is refused) for a version moved from another environment: it is recorded in the deployment's history. Answers `202 {"deployment_id"}`. |
 | `POST /v1/apps/{app}/rollback` | signature | Redeploys the most recent successful image that is not the running one. |
 | `POST /v1/apps/{app}/build` | signature | Builds the app's image on this server and deploys it: body `{"sha":"<40 hex>","source":{"url":"https://api.github.com/repos/o/r/tarball/<sha>","token":"<bearer token>"},"deploy":true}` (`deploy` may only be `true`). `202 {"deployment_id"}`; `404` unknown app, `400` the app has no `build:` block, a bad body, sha or token, or a `url` that is not https on one of the app's `source_hosts`, `409` this app is deploying or another build is running, `503` shutting down. See [Builds](./builds.md#building-on-the-server-from-a-github-app). |
-| `POST /v1/containers/{name}/start` | signature | Starts a stopped container of an app (one with the `keelson.app` label; any other is refused). `204` once it runs; `404` unknown container, `409` it is not managed by keelson or a deployment of its app is running, `400` a bad name. For a blue/green app the proxy is reconciled at once: a start can give the container another host port. |
+| `POST /v1/containers/{name}/start` | signature | Starts a stopped container of an app (one with the `keelson.app` label; any other is refused). `204` once it runs; `404` unknown container, `409` it is not managed by keelson, a deployment of its app is running, or the app is [stopped](#stopping-an-app) by the file (`enabled: false`: it would be stopped again at the next reconcile), `400` a bad name. For a blue/green app the proxy is reconciled at once: a start can give the container another host port. |
 | `POST /v1/containers/{name}/restart` | signature | Stops the container with its app's `stop_timeout` (10 s when the app is no longer in the file), then starts it again. Same answers and rules as `start`. Audited as `container.start` and `container.restart`. |
-| `GET /v1/apps` | read token | Configured apps with their container and last deployment, their `project` and `environment` labels as written, and the `digest` (`sha256:...`) of the image that serves, empty when nothing runs or the image has no registry digest. `env_changed_at` is when the app's [stored variables](./environment.md) last changed (RFC 3339, empty when there are none), to compare with the serving deployment. `domains` lists the public hostnames the proxy routes to the app (omitted when there are none); the dashboard shows the first domain as the address of the site. |
+| `GET /v1/apps` | read token | Configured apps with their container and last deployment, and `enabled`: a boolean that is always there, `false` only when the file stops the app ([Stopping an app](#stopping-an-app)), their `project` and `environment` labels as written, and the `digest` (`sha256:...`) of the image that serves, empty when nothing runs or the image has no registry digest. `env_changed_at` is when the app's [stored variables](./environment.md) last changed (RFC 3339, empty when there are none), to compare with the serving deployment. `domains` lists the public hostnames the proxy routes to the app (omitted when there are none); the dashboard shows the first domain as the address of the site. |
 | `GET /v1/deployments?app=&limit=` | read token | Recent deployments, newest first. |
 | `GET /v1/deployments/{id}` | read token | One deployment. |
 | `GET /v1/deployments/{id}/events` | read token | Server-Sent Events: the deployment's log (replayed if finished), then `end` with the final status. Events have the level `info`, `warn` or `error`, and `output` for a line printed by a failed container (see below). |

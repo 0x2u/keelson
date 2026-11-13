@@ -180,6 +180,11 @@ type Deployer struct {
 	proxyMu    sync.Mutex
 	applied    []proxy.Route
 	appliedSet bool
+	// canaries are the canary deployments under way, by app: the new version that receives a share of the visitors
+	// next to the one in app_state. They are memory only, on purpose: an agent that restarts mid-rollout comes back
+	// with app_state, which names the version that served, and the reconciler puts every visitor back on it.
+	// Guarded by proxyMu, like applied.
+	canaries map[string]proxy.Canary
 	// driftSince is when the proxy was last found drifted and said so: a drift that lasts is reported once per
 	// driftSilence (see reportDrift). Guarded by proxyMu, like applied.
 	driftSince time.Time
@@ -212,6 +217,9 @@ func (d *Deployer) Start(ctx context.Context, app string, target Target, trigger
 	}
 	if a.BuildOnly() {
 		return "", nil, ErrBuildOnly
+	}
+	if err := refuseStopped(a); err != nil {
+		return "", nil, err
 	}
 	ref, err := target.Ref(a.Image)
 	if err != nil {
@@ -247,6 +255,9 @@ func (d *Deployer) Rollback(ctx context.Context, app string) (id string, done <-
 	}
 	if a.BuildOnly() {
 		return "", nil, ErrBuildOnly
+	}
+	if err := refuseStopped(a); err != nil {
+		return "", nil, err
 	}
 	current, err := d.currentRef(ctx, a)
 	if err != nil {
@@ -789,7 +800,10 @@ type AppStatus struct {
 	Domains []string `json:"domains,omitempty"`
 	// BuildOnly marks a builder (build.only): it builds an image and runs nothing, so it is not an environment of a
 	// project. Omitted when false.
-	BuildOnly      bool              `json:"build_only,omitempty"`
+	BuildOnly bool `json:"build_only,omitempty"`
+	// Enabled is false for an app the file stops (enabled: false): its container is kept stopped and its domains answer 503.
+	// Always present.
+	Enabled        bool              `json:"enabled"`
 	Container      *docker.Detail    `json:"container"`
 	LastDeployment *store.Deployment `json:"last_deployment"`
 }
@@ -799,7 +813,7 @@ func (d *Deployer) Apps(ctx context.Context) ([]AppStatus, error) {
 	cfg := d.config()
 	out := make([]AppStatus, 0, len(cfg.Apps))
 	for _, a := range cfg.Apps {
-		s := AppStatus{Name: a.Name, Image: a.Image, Project: a.Project, Environment: a.Stage, Domains: a.Domains, BuildOnly: a.BuildOnly()}
+		s := AppStatus{Name: a.Name, Image: a.Image, Project: a.Project, Environment: a.Stage, Domains: a.Domains, BuildOnly: a.BuildOnly(), Enabled: a.IsEnabled()}
 		if d.env != nil {
 			s.EnvChangedAt = d.env.ChangedAt(a.Name)
 		}

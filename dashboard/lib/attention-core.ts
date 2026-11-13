@@ -1,4 +1,4 @@
-import type { AgentInfo, AlertRecord, AppStatus, Container, DatabaseStatus, Deployment, JobStatus, ProxyView, SystemInfo } from "@/lib/agent-types";
+import { appStopped, type AgentInfo, type AlertRecord, type AppStatus, type Container, type DatabaseStatus, type Deployment, type JobStatus, type ProxyView, type SystemInfo } from "@/lib/agent-types";
 import { imageVersion } from "@/lib/image-ref-core";
 import { deployEnding, deployNoun } from "@/lib/labels-core";
 import { isDownManaged, isSick, signals } from "@/lib/health-core";
@@ -124,10 +124,15 @@ function unreachableItem(s: ServerSnapshot, now: number): AttentionItem {
 
 const FAILED = new Set(["failed", "rolled_back", "rollback_failed"]);
 
-function appItems(s: ServerSnapshot, covered: Set<string>): AttentionItem[] {
+function appItems(s: ServerSnapshot, covered: Set<string>, now: number): AttentionItem[] {
   const out: AttentionItem[] = [];
   for (const app of s.apps ?? []) {
     const c = app.container;
+    // Stopped on purpose: no outage, no "never deployed", no failed deployment. The container still counts as accounted for.
+    if (appStopped(app)) {
+      if (c) covered.add(stripSlash(c.name));
+      continue;
+    }
     const last = app.last_deployment;
     const base = { server: s.server, subject: app.name, id: `${s.server.id}:app:${app.name}`, kind: "app-down" as const };
     const deployment: AttentionAction[] = last ? [{ label: "Deployment", href: `/servers/${s.server.id}/deployments/${last.id}` }] : [];
@@ -154,13 +159,24 @@ function appItems(s: ServerSnapshot, covered: Set<string>): AttentionItem[] {
       out.push({ ...base, severity: "critical", message: `${app.name} has no container although its last deployment succeeded`, since: sinceOf(last.finished_at, last.started_at), actions: deployment });
     }
 
-    if (last) out.push(...deploymentItem(s, app, last));
+    if (last) out.push(...deploymentItem(s, app, last, now));
   }
   return out;
 }
 
-function deploymentItem(s: ServerSnapshot, app: AppStatus, d: Deployment): AttentionItem[] {
+/**
+ * A deployment that failed or was rolled back is flagged for this long: the agent sent its notification when it happened, and
+ * the app serves the version it served before, so a day later the item is a reminder that has done its job (a rehearsal of a
+ * rollback two weeks ago was keeping a healthy app on "needs attention"). One that left nothing known to serve never expires.
+ */
+export const DEPLOYMENT_FAILURE_WINDOW_MS = 24 * 3600_000;
+
+function deploymentItem(s: ServerSnapshot, app: AppStatus, d: Deployment, now: number): AttentionItem[] {
   if (!FAILED.has(d.status)) return [];
+  if (d.status !== "rollback_failed") {
+    const at = Date.parse(d.finished_at ?? d.started_at);
+    if (Number.isFinite(at) && now - at > DEPLOYMENT_FAILURE_WINDOW_MS) return [];
+  }
   const version = imageVersion(d.ref).version;
   const what = `${deployNoun(d.trigger)} of ${app.name} ${version} ${deployEnding(d.trigger, d.status)}`;
   const actions: AttentionAction[] = [{ label: "Deployment", href: `/servers/${s.server.id}/deployments/${d.id}` }];
@@ -181,9 +197,10 @@ function deploymentItem(s: ServerSnapshot, app: AppStatus, d: Deployment): Atten
 
 function containerItems(s: ServerSnapshot, covered: Set<string>): AttentionItem[] {
   const out: AttentionItem[] = [];
+  const stopped = new Set((s.apps ?? []).filter(appStopped).map((a) => a.name));
   for (const c of s.containers ?? []) {
     const name = stripSlash(c.name);
-    if (covered.has(name) || !(isSick(c) || isDownManaged(c))) continue;
+    if (covered.has(name) || !(isSick(c) || isDownManaged(c, stopped))) continue;
     out.push({
       id: `${s.server.id}:container:${name}`,
       severity: "critical",
@@ -347,7 +364,7 @@ export function attentionItems(snapshots: ServerSnapshot[], now: number = Date.n
       continue;
     }
     const covered = new Set<string>();
-    items.push(...unreadItems(s), ...hostItems(s), ...appItems(s, covered), ...containerItems(s, covered), ...jobItems(s), ...databaseItems(s, now), ...proxyItems(s), ...alertItems(s, now));
+    items.push(...unreadItems(s), ...hostItems(s), ...appItems(s, covered, now), ...containerItems(s, covered), ...jobItems(s), ...databaseItems(s, now), ...proxyItems(s), ...alertItems(s, now));
   }
   return items.sort(compare);
 }

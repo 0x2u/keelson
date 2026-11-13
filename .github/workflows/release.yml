@@ -6,7 +6,7 @@ name: release
 #      record and an SBOM attached to the image;
 #   2. the GitHub release, once the image exists: the agent binaries for linux and darwin, amd64 and arm64, with SHA256SUMS and
 #      a build provenance attestation for each binary, and the files of deploy/ (compose.yaml, compose.tls.yaml, Caddyfile,
-#      install.sh) that the install command downloads.
+#      install.sh, update.sh) that the install command downloads.
 # The version is the tag itself: scripts/build-agent.sh and the image's VERSION build arg both receive it, so the agent, the
 # dashboard and the update check all say v0.1.0.
 #
@@ -185,7 +185,7 @@ jobs:
           the same version and each has a build provenance attestation (\`gh attestation verify <file> --repo ${GITHUB_REPOSITORY}\`);
           the dashboard installs its own copy on your servers, so you rarely need them. Check a download against \`SHA256SUMS\`.
 
-          \`install.sh\` and the compose files are fetched over https from this release and are not signed: read them before you run
+          \`install.sh\`, \`update.sh\` and the compose files are fetched over https from this release and are not signed: read them before you run
           them, or download the files and run \`sh install.sh\` from a folder that holds them.
 
           ## Changes
@@ -196,5 +196,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           case "${GITHUB_REF_NAME}" in *-*) kind=--prerelease ;; *) kind=--latest ;; esac
-          gh release create "${GITHUB_REF_NAME}" dist/agent/* deploy/compose.yaml deploy/compose.tls.yaml deploy/Caddyfile deploy/install.sh \
+          gh release create "${GITHUB_REF_NAME}" dist/agent/* deploy/compose.yaml deploy/compose.tls.yaml deploy/Caddyfile deploy/install.sh deploy/update.sh \
             --title "${GITHUB_REF_NAME}" --notes-file notes.md --generate-notes --verify-tag "${kind}"

@@ -103,7 +103,10 @@ var (
 // failBuild answers the errors of a build request. Messages never include anything of the request's source.
 func (s *server) failBuild(w http.ResponseWriter, r *http.Request, err error) {
 	var refused *config.BuildRequestError
+	var stopped *deploy.StoppedError
 	switch {
+	case errors.As(err, &stopped):
+		writeError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, deploy.ErrUnknownApp), errors.Is(err, deploy.ErrNoPreview):
 		writeError(w, http.StatusNotFound, "not found")
 	case errors.Is(err, errBuildBody), errors.Is(err, errBuildNoDeploy), errors.Is(err, errRequestedBuildBody):

@@ -1,0 +1,47 @@
+# A site deployed by canary: each new version receives 10% of the visitors, then 50%, then everyone, and goes back to the
+# previous version the moment a step goes wrong (docs/reference/deployments.md, "Canary: sharing the traffic step by step").
+#
+# What the agent does for it:
+#   - starts the new version beside the one that serves and waits for its health gate;
+#   - gives it 10% of the visitors for two minutes, then 50% for two minutes. Caddy keeps a browser on the version it was
+#     given, so a page and the hashed assets it points to come from the same version;
+#   - during every step asks the new container for /api/health and /, and asks your Prometheus for the error rate and the
+#     latency of the new version alone ({{container}} tells it from the one that serves);
+#   - on a failure in any step sends every visitor back to the previous version, which never stopped, and removes the new one;
+#   - if all steps hold, switches everything to the new version and watches it one more minute before stopping the old one.
+# Two copies of the app run for the whole rollout (here about 5 minutes): the server needs the memory for both.
+#
+# Needs Caddy (nginx cannot keep a visitor on one version). Caddy runs in a container with host networking:
+#   docker run -d --name caddy --network host --restart unless-stopped -v caddy_data:/data -v caddy_config:/config caddy:2-alpine
+proxy:
+  type: caddy
+  acme_email: ops@example.com
+apps:
+  - name: shop
+    project: shop
+    environment: production
+    image: ghcr.io/acme/shop
+    env_file: /srv/shop/.env
+    domains: [www.example.com]
+    port: 3000
+    health_path: /api/health
+    drain: 5s
+    soak: 1m
+    verify:
+      - {path: /}
+    canary:
+      steps: [10, 50] # percent of the visitors; 100 is the end of the rollout and needs no step
+      hold: 2m # how long each step is watched (default 1m, from 10s to 10m)
+    analysis: # asked at every step and during the soak; a bad value 3 evaluations in a row sends everyone back
+      address: http://127.0.0.1:9090
+      metrics:
+        - name: error-rate
+          query: |
+            sum(rate(http_requests_total{container="{{container}}",code=~"5.."}[1m]))
+            / sum(rate(http_requests_total{container="{{container}}"}[1m]))
+          max: 0.02 # at most 2% of the requests of the new version
+          interval: 15s
+        - name: p95-latency
+          query: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{container="{{container}}"}[1m])))
+          max: 0.8
+    keep_images: 3

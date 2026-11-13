@@ -7,13 +7,15 @@ import { AddAppButton, type AddAppTarget } from "@/components/projects/AddAppBut
 import { ImageRef } from "@/components/image-ref";
 import { RelativeTime } from "@/components/relative-time";
 import { EmptyState, Notice } from "@/components/states";
-import { ContainerBadge, DeploymentBadge, ServerStatusBadge } from "@/components/status";
+import { ContainerBadge, DeploymentBadge, ServerStatusBadge, StatusBadge } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DefinitionItem, DefinitionList, InlineLink, TableCard } from "@/components/layout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { attentionItems, summarize } from "@/lib/attention-core";
+import { appStopped } from "@/lib/agent-types";
+import { PLACEMENTS } from "@/lib/status";
 import { duration } from "@/lib/format";
 import { triggerLabel } from "@/lib/labels-core";
 import { serverListHref } from "@/lib/nav-core";
@@ -184,7 +186,7 @@ export async function AppsSection({ serverId, canDeploy, machine = false }: { se
                   </TableCell>
                   <TableCell className="hidden md:table-cell">{a.container ? <ImageRef value={a.container.image} className="max-w-64" /> : "–"}</TableCell>
                   <TableCell>
-                    {a.container ? <ContainerBadge state={a.container.state.status} health={a.container.state.health} /> : <span className="text-muted-foreground">Not deployed</span>}
+                    {appStopped(a) ? <StatusBadge view={PLACEMENTS.stopped} /> : a.container ? <ContainerBadge state={a.container.state.status} health={a.container.state.health} /> : <span className="text-muted-foreground">Not deployed</span>}
                   </TableCell>
                   <TableCell>
                     {a.last_deployment ? (

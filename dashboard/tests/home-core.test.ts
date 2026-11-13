@@ -110,3 +110,11 @@ describe("dayBuckets", () => {
     expect(b.filter((x) => x.worst === "failed")).toHaveLength(0);
   });
 });
+
+describe("fleetFigures and apps stopped on purpose", () => {
+  const app = (over: Record<string, unknown>) => ({ name: "a", container: { state: { running: false, restarting: false } }, ...over }) as unknown as AppStatus;
+  it("does not count a stopped app among the apps that should be up", () => {
+    const running = app({ container: { state: { running: true, restarting: false } } });
+    expect(fleetFigures([server({ apps: [running, app({ enabled: false }), app({})] })], NOW)).toMatchObject({ appsUp: 1, appsTotal: 2 });
+  });
+});

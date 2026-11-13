@@ -58,8 +58,12 @@ func (d *Deployer) Prepare(old, next *config.Config) (func(), error) {
 		}
 		px = d.proxyFactory(next.Proxy)
 	}
+	stoppedChanged := !reflect.DeepEqual(stoppedSet(old), stoppedSet(next))
 	return func() {
 		d.cfg.Store(next)
+		if stoppedChanged {
+			defer d.settleStopped()
+		}
 		if !proxyChanged {
 			return
 		}

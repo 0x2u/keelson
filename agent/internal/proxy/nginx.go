@@ -44,8 +44,11 @@ func RenderNginx(routes []Route) []byte {
 	var b bytes.Buffer
 	b.WriteString("# Managed by keelson-agent. Changes are overwritten.\n")
 	for _, r := range sorted {
+		if r.Upstream == "" {
+			continue // a stopped app that never had a port: there is no address to name
+		}
 		down := ""
-		if r.Down {
+		if r.Down || r.Stopped {
 			down = " down"
 		}
 		fmt.Fprintf(&b, "\nupstream %s {\n    server %s%s;\n}\n", UpstreamName(r.App), r.Upstream, down)

@@ -38,6 +38,14 @@
           ],
           "description": "Build, when set, lets the dashboard have this agent build the image from a source archive (a GitHub App installation) instead of pulling one CI built. See Build."
         },
+        "canary": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Canary"
+            }
+          ],
+          "description": "Canary replaces the single traffic switch by a progression of shares of visitors, each watched, with a return to the previous version when one fails. Caddy only. See Canary."
+        },
         "command": {
           "items": {
             "type": "string"
@@ -74,6 +82,10 @@
             }
           ],
           "description": "Drain is how long the previous version keeps running after the proxy has switched to the new one, so that requests a proxy worker still routes to it are not refused. Default 5s; 0s stops it at once."
+        },
+        "enabled": {
+          "description": "Enabled false stops the app and keeps it stopped: its container is stopped (never removed) and the agent stops it again if anything starts it, while the config, image, env, volumes, data and history stay. Its domains answer 503 meanwhile, it raises no app.down and counts as no outage. Absent or true: the app runs as usual. To start it again, remove the key (or set true) and start the container. Not for a build-only app, which has no container.",
+          "type": "boolean"
         },
         "env": {
           "additionalProperties": {
@@ -449,6 +461,28 @@
             }
           ],
           "description": "Timeout is the longest a build may take. Default 1h."
+        }
+      },
+      "type": "object"
+    },
+    "Canary": {
+      "additionalProperties": false,
+      "description": "Canary replaces the single traffic switch of a blue/green deployment by a progression: the new version receives a share of the visitors, is watched, receives more, and takes everything after the last step. A step that fails (the container, a verify path or a metric gate) sends every visitor back to the previous version, which never stopped. The share is of visitors, not of requests: a cookie keeps a browser on the version it was given, so that a page and the assets it references (hashed bundles of a front-end build) come from the same version. Only Caddy can do that.",
+      "properties": {
+        "hold": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ],
+          "description": "Hold is how long each step is watched before the next one. Default 1m, from 10s to 10m. Each step is judged afresh: the checks of verify and the metrics of analysis run during every one."
+        },
+        "steps": {
+          "description": "Steps are the shares of visitors, in percent (1 to 99, rising, at most 5), the new version receives one after the other: [10, 50] sends it 10% for one hold, then 50% for one hold, then 100%.",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
         }
       },
       "type": "object"

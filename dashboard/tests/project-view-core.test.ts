@@ -271,3 +271,27 @@ describe("newestDeployments", () => {
     expect(entries[1].server.id).toBe("2");
   });
 });
+
+describe("environmentView with apps stopped on purpose (enabled: false)", () => {
+  const exited = { status: "exited", running: false, paused: false, restarting: false, oom_killed: false, exit_code: 0 };
+  const stoppedApp = (name: string) => {
+    const a = app({ name, enabled: false });
+    if (a.container) a.container.state = exited;
+    return a;
+  };
+  const env = (...placements: Placement[]) => groupProjects(placements)[0].environments[0];
+
+  it("shows Stopped, muted, and serves nothing, when every app of the environment is stopped", () => {
+    const view = environmentView(env(place("1", stoppedApp("shop"))), ctx());
+    expect(view.state).toMatchObject({ tone: "muted", label: "Stopped" });
+    expect(view.serves).toBe(false);
+    expect(view.localAddresses).toEqual([]);
+  });
+
+  it("is judged on the app that runs when another one of the environment is stopped, whichever server comes first", () => {
+    const view = environmentView(env(place("1", stoppedApp("shop-a")), place("2", app({ name: "shop-b" }))), ctx({ sources: { "2/shop-b": source() } }));
+    expect(view.state).toMatchObject({ tone: "success", label: "Running" });
+    expect(view.app).toBe("shop-b");
+    expect(view.serves).toBe(true);
+  });
+});

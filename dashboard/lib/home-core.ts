@@ -1,5 +1,5 @@
 import type { AttentionItem } from "@/lib/attention-core";
-import type { AppStatus, DatabaseStatus, Deployment, JobRun, JobStatus } from "@/lib/agent-types";
+import { appStopped, type AppStatus, type DatabaseStatus, type Deployment, type JobRun, type JobStatus } from "@/lib/agent-types";
 import { jobsOf, type Placement } from "@/lib/projects-core";
 import type { Tone } from "@/lib/status";
 
@@ -114,6 +114,7 @@ export function fleetFigures(servers: (HomeServer & { databases?: DatabaseStatus
   for (const s of servers) {
     if (!s.reachable) continue;
     for (const a of s.apps ?? []) {
+      if (appStopped(a)) continue;
       f.appsTotal++;
       const c = a.container?.state;
       if (c && c.running && !c.restarting && c.health !== "unhealthy") f.appsUp++;

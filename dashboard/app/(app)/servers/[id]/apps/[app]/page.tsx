@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ICONS } from "@/lib/icons";
 import { agentFor } from "@/lib/agent";
+import { appStopped } from "@/lib/agent-types";
 import { load, loadServer } from "@/lib/data";
 import { actionIntent } from "@/lib/action-intent-core";
 import { hostsOf } from "@/lib/domain-status-core";
@@ -14,6 +15,7 @@ import { duration, shortRef } from "@/lib/format";
 import { appVersion, neverDeployed } from "@/lib/app-version-core";
 import { triggerLabel } from "@/lib/labels-core";
 import { ImageRef } from "@/components/image-ref";
+import { AppRunControls } from "@/components/AppRunControls";
 import { ContainerControls } from "@/components/ContainerControls";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,6 +82,7 @@ export default async function AppPage({ params, searchParams }: { params: Promis
   // It builds where it runs (a build: block) or on another server that the dashboard sends the image from (the app's build server).
   const builds = config.data?.model.apps?.find((a) => a.name === name)?.build !== undefined || link?.buildOn != null;
   const container = app.container;
+  const stopped = appStopped(app);
   const last = app.last_deployment;
   const version = appVersion(app, history.data ?? null);
   const envChange = envPending(app, history.data ?? null);
@@ -104,7 +107,7 @@ export default async function AppPage({ params, searchParams }: { params: Promis
         title={app.name}
         status={
           <>
-            {container ? <ContainerBadge state={container.state.status} health={container.state.health} /> : <Badge variant="muted">Not deployed</Badge>}
+            {stopped ? <Badge variant="muted">Stopped</Badge> : container ? <ContainerBadge state={container.state.status} health={container.state.health} /> : <Badge variant="muted">Not deployed</Badge>}
             <ConfigChangedBadge serverId={id} app={name} />
             {envChange && <EnvChangedBadge serverId={id} app={name} href={hasHubPages(app) ? appVariablesHref(projectOf(app), id, name) : undefined} />}
           </>
@@ -138,7 +141,8 @@ export default async function AppPage({ params, searchParams }: { params: Promis
                 Variables
               </Link>
             </Button>
-            {container && <ContainerControls serverId={id} name={container.name} state={container.state} managed canDeploy={server.canDeploy} deploying={running} />}
+            <AppRunControls serverId={id} app={app.name} stopped={stopped} hasContainer={container !== null} canDeploy={server.canDeploy} deploying={running} />
+            {container && <ContainerControls serverId={id} name={container.name} state={container.state} managed canDeploy={server.canDeploy} deploying={running} stopped={stopped} />}
             <DeployControls
               serverId={id}
               app={app.name}
@@ -158,6 +162,7 @@ export default async function AppPage({ params, searchParams }: { params: Promis
               }
               initialRef={initialRef}
               initialRollback={intent.rollback}
+              stopped={stopped}
             />
           </>
         }
@@ -173,7 +178,8 @@ export default async function AppPage({ params, searchParams }: { params: Promis
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 text-sm text-muted-foreground">
-              {version.kind === "last-known" && (
+              {stopped && <p>Stopped on purpose (enabled: false). Its domains answer 503 until you start it.</p>}
+              {!stopped && version.kind === "last-known" && (
                 <p>
                   {version.stopped ? "The container is stopped." : "Nothing serves now."}{" "}
                   {version.at && (
@@ -201,7 +207,7 @@ export default async function AppPage({ params, searchParams }: { params: Promis
           <Card>
             <CardHeader>
               <CardDescription>Container health</CardDescription>
-              <CardTitle>{container ? <ContainerBadge state={container.state.status} health={container.state.health} /> : <Badge variant="muted">Not deployed</Badge>}</CardTitle>
+              <CardTitle>{stopped ? <Badge variant="muted">Stopped</Badge> : container ? <ContainerBadge state={container.state.status} health={container.state.health} /> : <Badge variant="muted">Not deployed</Badge>}</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               {container ? (
@@ -219,6 +225,7 @@ export default async function AppPage({ params, searchParams }: { params: Promis
               ) : (
                 "No container exists for this app."
               )}
+              {stopped && <p>Stopped on purpose: not an outage.</p>}
             </CardContent>
           </Card>
 

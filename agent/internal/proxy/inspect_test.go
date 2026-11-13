@@ -100,3 +100,24 @@ func TestCaddyInspectComparesTheServedRoutesWithTheGeneratedOnes(t *testing.T) {
 		t.Errorf("an unreachable admin API is unknown, not different: %+v", got)
 	}
 }
+
+// What the agent pushes for a stopped app and what it reads back must agree, or the reconciler would see a drift at
+// every tick and push the configuration again. Caddy stores the JSON it was given, which the test stands in for by a
+// round trip through JSON.
+func TestCaddyInspectSeesNoDriftForAStoppedApp(t *testing.T) {
+	stopped := []Route{{App: "off", Hosts: []string{"off.example.com"}, Upstream: "127.0.0.1:3000", Stopped: true}}
+	var served any
+	b, _ := json.Marshal(caddyRoutes(config.Proxy{}, stopped))
+	_ = json.Unmarshal(b, &served)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"routes": served})
+	}))
+	defer srv.Close()
+	c := New(config.Proxy{Admin: srv.URL})
+	if got := c.Inspect(context.Background(), stopped); got.InSync == nil || !*got.InSync {
+		t.Errorf("a stopped route must compare equal to itself: %+v", got)
+	}
+	if got := c.Inspect(context.Background(), []Route{{App: "off", Hosts: []string{"off.example.com"}, Upstream: "127.0.0.1:3000"}}); got.InSync == nil || *got.InSync {
+		t.Errorf("a proxied route is not a stopped one: %+v", got)
+	}
+}

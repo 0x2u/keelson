@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Deployment } from "@/lib/agent-types";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {} }), usePathname: () => "/servers/s/apps/web" }));
+vi.mock("@/app/app-run-actions", () => ({ stopAppAction: async () => ({}), startAppAction: async () => ({}) }));
 vi.mock("@/app/container-actions", () => ({ containerAction: async () => ({}) }));
 vi.mock("@/app/actions", () => ({ deployAction: async () => ({}), rollbackAction: async () => ({}) }));
 vi.mock("@/app/github-actions", () => ({ buildAction: async () => ({}) }));
@@ -11,6 +12,7 @@ vi.mock("@/app/projects-actions", () => ({ promoteAction: async () => ({}) }));
 
 const { TooltipProvider } = await import("@/components/ui/tooltip");
 const { ImageRef, VersionTag } = await import("@/components/image-ref");
+const { AppRunControls } = await import("@/components/AppRunControls");
 const { ContainerControls } = await import("@/components/ContainerControls");
 const { DeployControls } = await import("@/components/DeployControls");
 const { PromoteButton } = await import("@/components/projects/PromoteButton");
@@ -104,5 +106,37 @@ describe("PromoteButton", () => {
   it("renders the trigger, and the reason instead when the promotion is blocked", () => {
     expect(html(createElement(PromoteButton, props))).toContain("Promote staging");
     expect(html(createElement(PromoteButton, { ...props, blocked: "Nothing is running in staging to promote." }))).toContain("Nothing is running in staging");
+  });
+});
+
+describe("a stopped app (enabled: false)", () => {
+  const history = [dep("r/web:v2", "2026-10-23T10:00:00Z"), dep("r/web:v1", "2026-10-22T10:00:00Z")];
+
+  it("turns Deploy and Roll back off, with the reason", () => {
+    const out = html(createElement(DeployControls, { serverId: "s", app: "web", canDeploy: true, running: false, current: "r/web:v2", source: null, history, neverDeployed: false, stopped: true }));
+    expect(buttonOf(out, "Deploy")).toContain('disabled=""');
+    expect(buttonOf(out, "Roll back")).toContain('disabled=""');
+  });
+
+  it("turns Restart off, with the reason, and offers no container Start", () => {
+    const out = html(createElement(ContainerControls, { serverId: "s", name: "web", managed: true, canDeploy: true, state: { running: false }, stopped: true }));
+    expect(buttonOf(out, "Restart")).toContain('disabled=""');
+    expect(out).not.toContain(">Start<");
+  });
+
+  it("has Start (and no Stop) on the app; a running app has Stop (and no Start)", () => {
+    const base = { serverId: "s", app: "web", hasContainer: true, canDeploy: true };
+    const stopped = html(createElement(AppRunControls, { ...base, stopped: true }));
+    expect(buttonOf(stopped, "Start")).not.toContain('disabled=""');
+    expect(stopped).not.toContain("Stop</");
+    const running = html(createElement(AppRunControls, { ...base, stopped: false }));
+    expect(running).toContain("Stop");
+    expect(running).not.toContain("Start");
+  });
+
+  it("offers nothing for an app that was never deployed, and a disabled button with the reason while a deployment runs", () => {
+    expect(html(createElement(AppRunControls, { serverId: "s", app: "web", stopped: false, hasContainer: false, canDeploy: true }))).toBe("");
+    const out = html(createElement(AppRunControls, { serverId: "s", app: "web", stopped: false, hasContainer: true, canDeploy: true, deploying: true }));
+    expect(buttonOf(out, "Stop")).toContain('disabled=""');
   });
 });

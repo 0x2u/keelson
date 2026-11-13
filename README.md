@@ -49,7 +49,7 @@ A step-by-step version of this section, with what to expect at each step, is in 
 
 You need a Linux server for the dashboard (Docker with the compose plugin 2.24 or newer) and a Linux server for your apps (systemd, amd64 or arm64, [Docker installed](https://docs.docker.com/engine/install/), outbound HTTPS to the dashboard). They can be the same machine to try it out. For real use, give the dashboard its own server, since it holds the credentials of every agent.
 
-Servers need Linux with systemd and Docker Engine. Debian 12 and 13 are tested; other distributions are not verified, and SELinux-enforcing hosts, rootless Docker and podman are not supported. The agent is built for amd64 and arm64. Its tests, including the ones against a real Docker engine and a deployment that fails and rolls back, run on both architectures in CI (GitHub-hosted amd64 and arm64 machines); only arm64 has been run on a real server so far. The [MCP server](docs/mcp.md) is not published to npm, so you build it from source. A server that connects out is updated with a command shown on its Update page (there is no button); a server added over SSH has a wizard there. Updating the dashboard is one command, see [Upgrading](docs/hosting.md#upgrading).
+Servers need Linux with systemd and Docker Engine. Debian 12 and 13 are tested; other distributions are not verified, and SELinux-enforcing hosts, rootless Docker and podman are not supported. The agent is built for amd64 and arm64. Its tests, including the ones against a real Docker engine and a deployment that fails and rolls back, run on both architectures in CI (GitHub-hosted amd64 and arm64 machines); only arm64 has been run on a real server so far. The [MCP server](docs/mcp.md) is not published to npm, so you build it from source. A server that connects out is updated with a command shown on its Update page (there is no button); a server added over SSH has a wizard there. The dashboard updates itself with one click once its host runs the updater (one command to enable it), or with one command otherwise; see [Upgrading](docs/hosting.md#upgrading).
 
 **1. Install the dashboard.**
 
@@ -99,6 +99,7 @@ apps:
     port: 3000
     health_path: /api/health            # must answer 2xx before traffic switches
     soak: 60s                           # watch the new version this long; go back if it fails
+    canary: {steps: [10, 50], hold: 1m} # 10% of the visitors, then 50%, each step watched; then everyone
     analysis:                           # ...and judge it by your Prometheus: out of bounds 3 times in a row, go back
       metrics:
         - {name: error-rate, query: 'sum(rate(http_requests_total{app="{{app}}",code=~"5.."}[1m])) / sum(rate(http_requests_total{app="{{app}}"}[1m]))', max: 0.02}
@@ -133,6 +134,8 @@ The full reference is [Configuration](docs/reference/configuration.md) and the p
 **Deployments**
 - Health-gated deployments with automatic rollback, in place or blue/green behind Caddy or nginx. After the switch a *soak* watches the new version and puts the old one back if it turns bad.
 - **Metric gates**: during the soak the agent asks your Prometheus (or Mimir, VictoriaMetrics, Thanos) the queries you chose, an error rate or a latency, and sends traffic back to the previous version when one stays out of bounds. A version whose pages all answer 200 but whose numbers are bad does not stay. Tested against a real Prometheus.
+- **Canary rollouts**: `canary: {steps: [10, 50]}` gives the new version 10% of the visitors, then 50%, then everyone, each step watched by the same checks and metric gates as the soak. A browser stays on the version it was given (so a page and its hashed assets match) and a step that fails sends every visitor back to a version that never stopped. Caddy only. Tested with fifty browsers against a real Caddy and a real Docker engine.
+- **Stop an app, keep it**: `enabled: false` (the dashboard has a **Stop** button) stops its containers and keeps everything else; its domains answer 503, it is not an incident, and **Start** brings it back. For test apps you want to keep around.
 - Release steps before the switch: a host command, a command in a throwaway container (migrations), or a verified encrypted database backup that aborts the deployment if it fails.
 - Previews (Caddy only): once an app has a `previews:` template in its configuration (written in the YAML editor), each pull request from the same repository gets its own environment on its own domain. It is removed when the pull request closes, or at its TTL or the cap.
 - Builds on the server that runs the app, or on another server or a connected laptop, within memory and CPU limits. Nothing is pushed to a registry. Presets for Next.js, Node.js, Vite and static sites cover repositories without a Dockerfile.

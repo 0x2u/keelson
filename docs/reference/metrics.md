@@ -24,7 +24,8 @@ Labels: `app`, `project`, `environment` for an app; `job` and `project` for a jo
 | `keelson_host_load{window}` | Load average over `1m`, `5m` and `15m`. |
 | `keelson_host_memory_bytes{kind}` | `total` and `available`. |
 | `keelson_host_disk_bytes{path,kind}` | `total` and `free` of the disk Docker keeps its data on (the root when that cannot be read). |
-| `keelson_app_up` | 1 when the container runs and is neither restarting nor reported unhealthy. A configured app with no container is 0. |
+| `keelson_app_up` | 1 when the container runs and is neither restarting nor reported unhealthy. A configured app with no container is 0. Absent for an app the file stops (`enabled: false`): it is not down, so `keelson_app_up == 0` does not match it. |
+| `keelson_app_enabled` | 0 when the apps file stops the app (`enabled: false`), 1 for every other app. |
 | `keelson_app_container_restarts` | Restarts of the container since it was created: alert on `increase()`. |
 | `keelson_app_oom_killed` | 1 when the engine killed the container for lack of memory. |
 | `keelson_app_started_timestamp_seconds` | When the running container started. |

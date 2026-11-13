@@ -189,7 +189,10 @@ func (s *server) runJob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) failDeploy(w http.ResponseWriter, r *http.Request, err error) {
+	var stopped *deploy.StoppedError
 	switch {
+	case errors.As(err, &stopped):
+		writeError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, deploy.ErrUnknownApp), errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found")
 	case errors.Is(err, deploy.ErrInvalidTarget):
@@ -366,7 +369,10 @@ func (s *server) restartContainer(w http.ResponseWriter, r *http.Request) {
 // answer says the engine did it, not that the app is healthy.
 func (s *server) containerAction(w http.ResponseWriter, r *http.Request, act func(context.Context, string) error) {
 	err := act(r.Context(), r.PathValue("name"))
+	var stopped *deploy.StoppedError
 	switch {
+	case errors.As(err, &stopped):
+		writeError(w, http.StatusConflict, "app "+stopped.App+" is stopped (enabled: false): remove it from its configuration before starting its container")
 	case err == nil:
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, docker.ErrInvalidID):

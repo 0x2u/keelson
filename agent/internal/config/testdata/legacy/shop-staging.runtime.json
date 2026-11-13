@@ -6,6 +6,7 @@
       "project": "shop",
       "effective_project": "shop",
       "environment": "staging",
+      "enabled": true,
       "image": "ghcr.io/acme/shop",
       "env_file": "/var/www/shop-staging/.env",
       "env": {
@@ -22,6 +23,7 @@
       "stable_after_explicit": false,
       "drain_seconds": 5,
       "soak_seconds": null,
+      "canary": null,
       "verify": [],
       "analysis": null,
       "keep_images": 2,

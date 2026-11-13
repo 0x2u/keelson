@@ -10,7 +10,7 @@ import (
 
 // Keys are written in a tidy order; anything else follows alphabetically.
 var (
-	appKeyOrder      = []string{"name", "project", "environment", "image", "build", "source", "env_file", "env", "publish", "volumes", "network", "restart", "command", "stop_timeout", "health_timeout", "stable_after", "drain", "soak", "verify", "domains", "port", "health_path", "deploy", "release", "log", "keep_images", "previews", "database"}
+	appKeyOrder      = []string{"name", "project", "environment", "enabled", "image", "build", "source", "env_file", "env", "publish", "volumes", "network", "restart", "command", "stop_timeout", "health_timeout", "stable_after", "drain", "soak", "verify", "domains", "port", "health_path", "deploy", "release", "log", "keep_images", "previews", "database"}
 	jobKeyOrder      = []string{"name", "project", "schedule", "timezone", "http", "host", "dir", "container", "timeout", "alert_after", "realert_after", "catch_up", "paused"}
 	notifKeyOrder    = []string{"name", "events", "webhooks", "telegram", "heartbeat", "disk_alert_percent", "memory_alert_percent", "alert_cooldown"}
 	previewKeyOrder  = []string{"domain", "env_file", "env", "ttl", "max"}

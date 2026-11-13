@@ -229,6 +229,7 @@ func TestPreviewRequestsAreValidatedAndErrorsMapToStatuses(t *testing.T) {
 		{deploy.ErrInvalidTarget, 400},
 		{deploy.ErrInvalidPR, 400},
 		{deploy.ErrBusy, 409},
+		{&deploy.StoppedError{App: "shop"}, 409}, // a stopped app makes no preview
 		{deploy.ErrShuttingDown, 503},
 		{io.ErrUnexpectedEOF, 500},
 	}

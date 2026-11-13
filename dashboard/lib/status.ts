@@ -157,6 +157,8 @@ export const CONTAINER_HEALTH: Record<"healthy" | "unhealthy" | "starting", Stat
 /** An app placement that has no container to describe. */
 export const PLACEMENTS = {
   notDeployed: NOT_DEPLOYED,
+  /** Stopped on purpose (`enabled: false`): the container's own "Stopped" is danger, this one is not. */
+  stopped: { tone: "muted", label: "Stopped" },
 } as const satisfies Record<string, StatusView>;
 
 /** Where an environment (an app within a project) stands, in one word. A failed latest deployment keeps "Running" but warns. */
@@ -165,6 +167,8 @@ export const ENVIRONMENTS = {
   deploying: DEPLOYMENTS.running,
   starting: STARTING,
   running: { tone: "success", label: "Running" },
+  /** Stopped on purpose (`enabled: false`): not an outage, so muted, never Down. */
+  stopped: { tone: "muted", label: "Stopped" },
   runningLastFailed: { tone: "warning", label: "Running" },
   down: { tone: "danger", label: "Down" },
   error: { tone: "danger", label: "Error" },

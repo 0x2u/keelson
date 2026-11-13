@@ -192,6 +192,7 @@ func TestBuildRequestBodiesAndErrorsAreAnsweredPrecisely(t *testing.T) {
 		{deploy.ErrBuildNameTaken, 409, "taken"},
 		{deploy.ErrBuildBusy, 409, "another build"},
 		{deploy.ErrBusy, 409, "already running"},
+		{&deploy.StoppedError{App: "shop"}, 409, "is stopped (enabled: false)"},
 		{deploy.ErrShuttingDown, 503, "shutting down"},
 	} {
 		e.builds.err = c.err

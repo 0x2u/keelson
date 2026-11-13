@@ -4,7 +4,7 @@ import { actionIntent } from "@/lib/action-intent-core";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { agentFor } from "@/lib/agent";
-import type { Port } from "@/lib/agent-types";
+import { appStopped, type Port } from "@/lib/agent-types";
 import { load, loadServer } from "@/lib/data";
 import { LiveLogs } from "@/components/LiveLogs";
 import { LiveStats } from "@/components/LiveStats";
@@ -61,8 +61,9 @@ export default async function ContainerPage({
   // Started with the container itself: the history is read while the page is built.
   const history = load(agent.statsHistory(name, range));
   // The list carries the labels the detail lacks: the app the container belongs to, which tells whether Keelson manages it.
-  const [detail, all] = await Promise.all([load(agent.container(name)), load(agent.containers(true))]);
+  const [detail, all, apps] = await Promise.all([load(agent.container(name)), load(agent.containers(true)), load(agent.apps())]);
   const appName = appOfContainer(all.data, name);
+  const stopped = apps.data?.some((a) => a.name === appName && appStopped(a)) ?? false;
   // Under its project (Projects > shop > Apps > web > container) when an app or database of one owns it, under its server otherwise.
   const owner = await projectOfContainer(server, { name, appLabel: appName });
   const crumbs = entityCrumbs(
@@ -93,7 +94,7 @@ export default async function ContainerPage({
         breadcrumbs={crumbs}
         title={c.name}
         status={<ContainerBadge state={c.state.status} health={c.state.health} />}
-        actions={<ContainerControls serverId={id} name={c.name} state={c.state} managed={appName !== undefined} canDeploy={server.canDeploy} initialAction={actionIntent(query).container} />}
+        actions={<ContainerControls serverId={id} name={c.name} state={c.state} managed={appName !== undefined} canDeploy={server.canDeploy} stopped={stopped} initialAction={actionIntent(query).container} />}
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <ImageRef value={c.image} className="max-w-full" />

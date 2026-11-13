@@ -1,7 +1,7 @@
 import { ChevronDownIcon, HardDriveIcon, MemoryStickIcon } from "lucide-react";
 import { ICONS } from "@/lib/icons";
 import type { ReactNode } from "react";
-import type { AgentInfo, Container, DiskUsage, SystemInfo } from "@/lib/agent-types";
+import { appStopped, type AgentInfo, type AppStatus, type Container, type DiskUsage, type SystemInfo } from "@/lib/agent-types";
 import type { Loaded } from "@/lib/data";
 import { formatBytes } from "@/lib/format";
 import { assess, formatUptime, loadTone, usageTone } from "@/lib/health-core";
@@ -60,13 +60,16 @@ export async function ServerHealth({
   info,
   system,
   containers,
+  apps,
 }: {
   serverId: string;
   info: Promise<Loaded<AgentInfo>>;
   system: Promise<Loaded<SystemInfo | null>>;
   containers: Promise<Loaded<Container[]>>;
+  /** The apps, to tell a container stopped on purpose (`enabled: false`) from one that died. */
+  apps: Promise<Loaded<AppStatus[] | null>>;
 }) {
-  const [infoResult, systemResult, containerResult] = await Promise.all([info, system, containers]);
+  const [infoResult, systemResult, containerResult, appsResult] = await Promise.all([info, system, containers, apps]);
   const reachable = infoResult.error === undefined;
   if (reachable) markSeen(serverId);
   const seen = lastSeen(serverId);
@@ -119,7 +122,7 @@ export async function ServerHealth({
 
   const sys = systemResult.data;
   const { host, engine } = sys;
-  const verdict = assess(sys, containerResult.data);
+  const verdict = assess(sys, containerResult.data, new Set((appsResult.data ?? []).filter(appStopped).map((a) => a.name)));
   const memUsed = host.memory ? host.memory.total - host.memory.available : 0;
   const diskUsed = host.disk ? host.disk.total - host.disk.free : 0;
   const swapUsed = host.memory ? host.memory.swap_total - host.memory.swap_free : 0;

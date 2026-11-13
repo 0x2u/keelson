@@ -51,6 +51,7 @@ apps:
     stable_after: 20s
     drain: 0s
     soak: 45s
+    canary: {steps: [10, 50], hold: 1m}
     verify:
       - {path: /}
       - {path: /login, status: 302}

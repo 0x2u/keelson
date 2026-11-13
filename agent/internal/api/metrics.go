@@ -188,8 +188,11 @@ func (s *server) appMetrics(ctx context.Context, e *exposition) error {
 		}
 		l := []string{"app", a.Name, "project", a.Project, "environment", a.Environment}
 		c := a.Container
-		up := c != nil && c.State.Running && !c.State.Restarting && c.State.Health != "unhealthy"
-		e.flag("keelson_app_up", "1 when the app's container runs and is neither restarting nor reported unhealthy.", up, l...)
+		e.flag("keelson_app_enabled", "0 when the apps file stops the app (enabled: false), 1 otherwise.", a.Enabled, l...)
+		if a.Enabled { // a stopped app is not down: no series, so that an alert on keelson_app_up == 0 stays quiet
+			up := c != nil && c.State.Running && !c.State.Restarting && c.State.Health != "unhealthy"
+			e.flag("keelson_app_up", "1 when the app's container runs and is neither restarting nor reported unhealthy. Absent while the app is stopped (enabled: false).", up, l...)
+		}
 		if c != nil {
 			e.gauge("keelson_app_container_restarts", "Times the engine restarted the app's container since it was created.", float64(c.RestartCount), l...)
 			e.flag("keelson_app_oom_killed", "1 when the engine killed the app's container for running out of memory.", c.State.OOMKilled, l...)

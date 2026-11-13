@@ -128,7 +128,7 @@ describe("the guard sees what drift looks like", () => {
     });
     expect(checkDeployments(deployments)).toEqual([
       'deployments[1].status: expected one of running, succeeded, failed, rolled_back, rollback_failed, got "done"',
-      'deployments[1].phases[0].name: expected one of source, build, release, switch, soak, live, got "deploy"',
+      'deployments[1].phases[0].name: expected one of source, build, release, switch, canary, soak, live, got "deploy"',
     ]);
   });
 

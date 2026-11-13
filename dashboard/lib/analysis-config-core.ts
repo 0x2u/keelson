@@ -1,5 +1,6 @@
 import type { AnalysisConfig, MetricGateConfig } from "@/lib/agent-types";
 import { parseDurationSeconds } from "@/lib/build-elsewhere-core";
+import { holdSeconds } from "@/lib/canary-config-core";
 
 /** The agent's limits on an app's metric gates (agent/internal/config/analysis.go). */
 export const MAX_METRICS = 5;
@@ -97,16 +98,24 @@ function addressError(address: string): string | undefined {
 
 /**
  * What is wrong with the gates, keyed `analysis.address` and `analysis.<index>.<field>`: the checks the agent makes that a
- * form can make while you type. `soak` is the soak field as typed (blank is the agent's 30 seconds).
+ * form can make while you type. `soak` is the soak field as typed (blank is the agent's 30 seconds). `canary` is set when
+ * canary steps are given, with the hold as typed: the gates are then also evaluated during every step, so a soak of 0s is
+ * fine, and a gate must be able to trip inside the shortest watch (the soak, or the hold).
  */
-export function analysisErrors(address: string, metrics: MetricDraft[], soak: string): Record<string, string> {
+export function analysisErrors(address: string, metrics: MetricDraft[], soak: string, canary: { hold: string } | null = null): Record<string, string> {
   const errors: Record<string, string> = {};
   if (metrics.length === 0) return errors;
   const addr = addressError(address);
   if (addr) errors["analysis.address"] = addr;
   if (metrics.length > MAX_METRICS) errors.analysis = `At most ${MAX_METRICS} metrics.`;
   const soakSeconds = soak.trim() === "" ? DEFAULT_SOAK_SECONDS : parseDurationSeconds(soak);
-  if (soakSeconds === 0) errors.analysis = "Metrics are evaluated during the soak: give it more than 0s, or remove the metrics.";
+  if (soakSeconds === 0 && !canary) errors.analysis = "Metrics are evaluated during the soak: give it more than 0s, or remove the metrics.";
+  const holdSecs = canary ? holdSeconds(canary.hold) : null;
+  // The shortest watch a gate must fit in: the soak (when there is one) and the canary hold.
+  const watches: { name: string; seconds: number }[] = [];
+  if (soakSeconds !== null && soakSeconds > 0) watches.push({ name: "soak", seconds: soakSeconds });
+  if (holdSecs !== null && holdSecs > 0) watches.push({ name: "canary hold", seconds: holdSecs });
+  const watch = watches.reduce<{ name: string; seconds: number } | undefined>((a, b) => (a === undefined || b.seconds < a.seconds ? b : a), undefined);
   const names = new Set<string>();
   metrics.forEach((m, i) => {
     const key = `analysis.${i}`;
@@ -134,9 +143,9 @@ export function analysisErrors(address: string, metrics: MetricDraft[], soak: st
       if (!/^\d+$/.test(limitText) || Number(limitText) < 1 || Number(limitText) > MAX_FAILURE_LIMIT) errors[`${key}.failure_limit`] = `A whole number from 1 to ${MAX_FAILURE_LIMIT}.`;
       else limit = Number(limitText);
     }
-    if (!errors[`${key}.interval`] && !errors[`${key}.failure_limit`] && soakSeconds !== null && soakSeconds > 0 && interval !== null) {
-      const evaluations = Math.floor(soakSeconds / interval);
-      if (evaluations < limit) errors[`${key}.failure_limit`] = `The soak holds ${evaluations} evaluation${evaluations === 1 ? "" : "s"} at this interval: this limit could never be reached. Lengthen the soak, shorten the interval or lower the limit.`;
+    if (!errors[`${key}.interval`] && !errors[`${key}.failure_limit`] && watch !== undefined && interval !== null) {
+      const evaluations = Math.floor(watch.seconds / interval);
+      if (evaluations < limit) errors[`${key}.failure_limit`] = `The ${watch.name} holds ${evaluations} evaluation${evaluations === 1 ? "" : "s"} at this interval: this limit could never be reached. Lengthen the ${watch.name}, shorten the interval or lower the limit.`;
     }
   });
   return errors;

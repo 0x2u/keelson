@@ -150,8 +150,12 @@ func validateAnalysis(a *App) error {
 	if len(a.Analysis.Metrics) == 0 {
 		return errors.New("analysis has no metrics: list at least one, or remove analysis")
 	}
-	if a.SoakFor() <= 0 {
-		return errors.New("analysis is evaluated during the soak: it needs soak above 0s")
+	window := a.SoakFor()
+	if a.Canary != nil && (window <= 0 || a.Canary.HoldFor() < window) {
+		window = a.Canary.HoldFor() // every canary step is judged on its own: the shortest watch is the one that must be able to trip
+	}
+	if window <= 0 {
+		return errors.New("analysis is evaluated during the soak and the canary steps: it needs soak above 0s, or a canary")
 	}
 	if a.Analysis.Address != "" {
 		if err := validPrometheusAddress(a.Analysis.Address); err != nil {
@@ -164,7 +168,7 @@ func validateAnalysis(a *App) error {
 	seen := map[string]bool{}
 	for i := range a.Analysis.Metrics {
 		m := &a.Analysis.Metrics[i]
-		if err := validateMetric(m, a.SoakFor()); err != nil {
+		if err := validateMetric(m, window); err != nil {
 			return fmt.Errorf("analysis.metrics[%d]: %w", i, err)
 		}
 		if seen[m.Name] {
@@ -216,7 +220,7 @@ func validateMetric(m *Metric, soak time.Duration) error {
 	// The gate must be able to trip: the soak holds floor(soak/interval) evaluations (one every interval, the last at
 	// its end), and the limit is a run of them.
 	if n := int(soak / m.Interval.Std()); n < *m.FailureLimit {
-		return fmt.Errorf("the soak (%s) holds %d evaluation(s) every %s, but failure_limit is %d: the gate could never trip. Lengthen soak, shorten interval or lower failure_limit",
+		return fmt.Errorf("the shortest watch (the soak, or a step of the canary: %s) holds %d evaluation(s) every %s, but failure_limit is %d: the gate could never trip. Lengthen soak or canary.hold, shorten interval or lower failure_limit",
 			FormatDuration(soak), n, FormatDuration(m.Interval.Std()), *m.FailureLimit)
 	}
 	return nil

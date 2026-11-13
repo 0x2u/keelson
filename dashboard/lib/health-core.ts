@@ -46,9 +46,11 @@ export interface Signal {
 /** Containers that exist to run and exit (a release step, a job's one-off container) are not "stopped". */
 const ONE_SHOT_LABELS = ["keelson.job", "keelson.release"];
 
-/** A container keelson manages for an app that should be serving but is not: exited, dead or being restarted. */
-export function isDownManaged(c: Container): boolean {
-  if (!c.labels?.["keelson.app"] || ONE_SHOT_LABELS.some((l) => c.labels[l])) return false;
+const NO_APPS: ReadonlySet<string> = new Set();
+
+/** A container keelson manages for an app that should be serving but is not: exited, dead or being restarted. The containers of `stoppedApps` (stopped on purpose, `enabled: false`) are meant to be down. */
+export function isDownManaged(c: Container, stoppedApps: ReadonlySet<string> = NO_APPS): boolean {
+  if (!c.labels?.["keelson.app"] || stoppedApps.has(c.labels["keelson.app"]) || ONE_SHOT_LABELS.some((l) => c.labels[l])) return false;
   return c.state === "exited" || c.state === "dead" || c.state === "restarting";
 }
 
@@ -61,7 +63,7 @@ export function isSick(c: Container): boolean {
  * Every signal the machine itself gives, worst first. A signal that could not be read is not a problem on its own; the
  * screen says it is unknown.
  */
-export function signals(system: SystemInfo, containers: Container[] | undefined): Signal[] {
+export function signals(system: SystemInfo, containers: Container[] | undefined, stoppedApps: ReadonlySet<string> = NO_APPS): Signal[] {
   const found: Signal[] = [];
   const { host } = system;
 
@@ -89,14 +91,14 @@ export function signals(system: SystemInfo, containers: Container[] | undefined)
   if (containers) {
     const sick = containers.filter(isSick);
     if (sick.length > 0) found.push({ kind: "containers", tone: "danger", text: `${sick.length} container${sick.length === 1 ? "" : "s"} unhealthy or restarting` });
-    const stopped = containers.filter((c) => isDownManaged(c) && !isSick(c));
+    const stopped = containers.filter((c) => isDownManaged(c, stoppedApps) && !isSick(c));
     if (stopped.length > 0) found.push({ kind: "containers", tone: "danger", text: `${stopped.length} app container${stopped.length === 1 ? "" : "s"} stopped` });
   }
   return found.sort((a, b) => RANK[b.tone] - RANK[a.tone]);
 }
 
 /** The machine's own verdict: the worst of its signals. The server's full verdict is the attention model's (lib/attention-core.ts). */
-export function assess(system: SystemInfo, containers: Container[] | undefined): Assessment {
-  const found = signals(system, containers);
+export function assess(system: SystemInfo, containers: Container[] | undefined, stoppedApps: ReadonlySet<string> = NO_APPS): Assessment {
+  const found = signals(system, containers, stoppedApps);
   return { tone: found.length === 0 ? "success" : found[0].tone, reasons: found.map((f) => f.text) };
 }

@@ -79,6 +79,8 @@ describe("the status vocabulary", () => {
       for (const [state, view] of Object.entries(map)) {
         // "Running" with a warning tone is the one deliberate variant: an environment that serves while its newest deployment failed.
         if (state === "runningLastFailed") continue;
+        // "Stopped" on purpose (enabled: false) is muted: the other one, a container that exited by itself, is danger and is not this word's only meaning.
+        if (name !== "CONTAINER_STATES" && state === "stopped") continue;
         const earlier = seen.get(view.label);
         if (earlier) expect(view.tone, `"${view.label}" is ${earlier.tone} in ${earlier.where} but ${view.tone} in ${name}.${state}`).toBe(earlier.tone);
         else seen.set(view.label, { tone: view.tone, where: `${name}.${state}` });

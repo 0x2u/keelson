@@ -32,3 +32,10 @@ describe("appOfContainer", () => {
     expect(appOfContainer(undefined, "db")).toBeUndefined();
   });
 });
+
+describe("containerControls of a stopped app (enabled: false)", () => {
+  it("offers neither Start nor Restart: the app is started with its own Start, not from the container", () => {
+    expect(containerControls(down, { managed: true, canDeploy: true, stopped: true })).toEqual({ start: false, restart: false, reason: "Stopped: start it first." });
+    expect(containerControls(up, { managed: true, canDeploy: true, stopped: true }).restart).toBe(false);
+  });
+});

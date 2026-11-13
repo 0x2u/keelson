@@ -136,7 +136,10 @@ func (s *server) deletePreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) failPreview(w http.ResponseWriter, r *http.Request, err error) {
+	var stopped *deploy.StoppedError
 	switch {
+	case errors.As(err, &stopped):
+		writeError(w, http.StatusConflict, "app "+stopped.App+" is stopped (enabled: false): it makes no preview")
 	case errors.Is(err, deploy.ErrNoPreview):
 		writeError(w, http.StatusNotFound, "no previews template for this app")
 	case errors.Is(err, deploy.ErrInvalidPR):

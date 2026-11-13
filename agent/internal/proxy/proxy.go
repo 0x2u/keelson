@@ -29,7 +29,33 @@ type Route struct {
 	// the upstream its server block names, or the whole configuration is invalid ("host not found in upstream") and no
 	// reload, restart or boot can load it; a server marked down answers 502 and keeps the configuration valid.
 	Down bool
+	// Stopped marks an app the file stops (enabled: false): its container is down on purpose, so no visitor is sent
+	// anywhere. Caddy answers its hosts with 503 and a short text; nginx gets the upstream its server block names, marked
+	// down, as for any app nothing serves. Upstream is where the app was, for nginx's upstream block (empty: none is
+	// written); Caddy does not use it.
+	Stopped bool
+	// Canary, when set, shares the app's visitors between Upstream (the version that has been serving) and a second one.
+	// Caddy only: nginx cannot keep a visitor on one version, and the configuration refuses a canary with it.
+	Canary *Canary
 }
+
+// Canary is the new version of an app while a canary deployment is under way.
+type Canary struct {
+	// Upstream is "host:port" of the new version.
+	Upstream string
+	// Percent is the share of visitors, from 1 to 99, that the new version receives.
+	Percent int
+	// Key makes the cookie of this step unique: a visitor is given a version by the weights of the step it arrives in and
+	// keeps it until the step changes, and a cookie left by an earlier rollout never matches. The deployment id and the
+	// step, such as "9f3a...-50".
+	Key string
+}
+
+// StoppedBody is what Caddy answers, with status 503, for the hosts of an app that is stopped (enabled: false).
+const StoppedBody = "This app is stopped."
+
+// canaryCookie names the cookie that keeps a browser on the version it was given.
+const canaryCookie = "keelson_canary"
 
 // Caddy applies routes to a Caddy admin API.
 type Caddy struct {
@@ -164,7 +190,7 @@ type ownedRoute struct {
 func caddyRoutes(settings config.Proxy, routes []Route) []any {
 	owned := make([]ownedRoute, 0, len(routes)+len(settings.Sites))
 	for _, r := range routes {
-		owned = append(owned, ownedRoute{r.Hosts[0], hostRoute(r.Hosts, reverseProxy(settings, r.Upstream))})
+		owned = append(owned, ownedRoute{r.Hosts[0], hostRoute(r.Hosts, routeHandler(settings, r))})
 	}
 	for _, s := range settings.Sites {
 		if h := siteHandlers(settings, s); h != nil {
@@ -200,4 +226,59 @@ func reverseProxy(settings config.Proxy, upstream string) map[string]any {
 		h["headers"] = map[string]any{"request": map[string]any{"set": map[string]any{"X-Forwarded-For": []any{"{http.vars.client_ip}"}}}}
 	}
 	return h
+}
+
+// routeHandler is the reverse proxy of an app route: one upstream, or, during a canary, both versions. The visitors who
+// carry the cookie stay where it points; a visitor without one is given a version by the weights, and Caddy sets the
+// cookie. Both are Caddy's own selection policies.
+func routeHandler(settings config.Proxy, r Route) map[string]any {
+	if r.Stopped {
+		return map[string]any{
+			"handler":     "static_response",
+			"status_code": 503,
+			"body":        StoppedBody,
+			"headers":     map[string]any{"Content-Type": []any{"text/plain; charset=utf-8"}},
+		}
+	}
+	h := reverseProxy(settings, r.Upstream)
+	if r.Canary == nil {
+		return h
+	}
+	upstreams, weights := canaryPool(r.Upstream, r.Canary.Upstream, r.Canary.Percent)
+	h["upstreams"] = upstreams
+	h["load_balancing"] = map[string]any{"selection_policy": map[string]any{
+		"policy": "cookie",
+		"name":   canaryCookie,
+		"secret": r.Canary.Key,
+		"fallback": map[string]any{
+			"policy":  "weighted_round_robin",
+			"weights": weights,
+		},
+	}}
+	return h
+}
+
+// canaryPool lists the upstreams, and their weights, that share the visitors between the serving version and the new
+// one. Caddy's weighted round robin walks a cycle of 100 draws in the order of the list: with [stable 90, canary 10] the
+// first 90 visitors of every cycle go to the stable version and the next 10 to the new one, so a site with fifty visitors
+// per step would never show the new version to any. The 100 draws are spread instead, the new version taking every draw
+// that brings the running share over a whole number of percent (10%: nine stable, one new, ten times; 33%: a new one
+// every third draw or so), then runs of the same version are listed once with their length as weight. A version listed
+// several times is one upstream to Caddy: the cookie of a visitor points at its address, whichever entry it was drawn from.
+func canaryPool(stable, canary string, percent int) (upstreams, weights []any) {
+	last := ""
+	for i := range 100 {
+		dial := stable
+		if (i+1)*percent/100 > i*percent/100 {
+			dial = canary
+		}
+		if dial == last {
+			weights[len(weights)-1] = weights[len(weights)-1].(int) + 1
+			continue
+		}
+		upstreams = append(upstreams, map[string]any{"dial": dial})
+		weights = append(weights, 1)
+		last = dial
+	}
+	return upstreams, weights
 }

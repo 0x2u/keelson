@@ -166,3 +166,58 @@ func TestARecordThatCannotBeWrittenOrReadDoesNotStopTheWatcher(t *testing.T) {
 		t.Error("the watcher kept its own state")
 	}
 }
+
+// An app the file stops (enabled: false) is down on purpose: no alert, no outage in the record, and an outage that was
+// open when it was stopped ends there. Starting it again puts it back under the usual judgement.
+func TestAStoppedAppIsNoOutageAndEndsTheOneThatWasOpen(t *testing.T) {
+	stopped := AppState{Name: "web", Stopped: true}
+	src := &fakeSource{}
+	sink := &fakeAvailability{}
+	rec, alerts, events, clock := newTracker(src, 3, sink)
+	step := func(s AppState) {
+		t.Helper()
+		src.states = []AppState{s}
+		if err := rec.Check(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if err := alerts.Check(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		*clock = clock.Add(15 * time.Second)
+	}
+	step(up) // 12:00:00
+	// The container is not running, and the file says so: whatever the other fields hold, it is not a verdict.
+	stoppedAndGone := stopped
+	stoppedAndGone.Present, stoppedAndGone.Running, stoppedAndGone.ExitCode = true, false, 137
+	for range 6 {
+		step(stoppedAndGone)
+	}
+	if sink.log() != "web:up@12:00:00" || events.types() != "" {
+		t.Fatalf("a stopped app is neither an incident nor an alert: record %q, alerts %q", sink.log(), events.types())
+	}
+
+	// An app that was down, then stopped: the incident ends when it is stopped (12:02:45), it does not run on.
+	step(up)     // 12:01:45... back under judgement
+	step(exited) // :02:00
+	step(exited) // :02:15
+	step(exited) // :02:30 -> down
+	if events.types() != "app.down:web" {
+		t.Fatalf("alerts: %s", events.types())
+	}
+	step(stopped) // :02:45
+	step(stopped)
+	if got := sink.log(); !strings.HasSuffix(got, ",web:down@12:02:30,web:up@12:02:45") {
+		t.Errorf("the incident ends when the app is stopped: %s", got)
+	}
+	if events.types() != "app.down:web" {
+		t.Errorf("stopping on purpose is not a recovery to announce: %s", events.types())
+	}
+
+	// Started again and failing: down again after the usual three observations, with a fresh alert.
+	step(exited)
+	step(exited)
+	step(exited)
+	if events.types() != "app.down:web,app.down:web" {
+		t.Errorf("an app started again is judged like any other: %s", events.types())
+	}
+}

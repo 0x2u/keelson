@@ -47,6 +47,7 @@ import type { AppConfig, BuildConfig, ConfigIssue, PortConfig, ReleaseStepConfig
 import { createdNotice, portParts, reviewChanges, saveEffect, saveNotice } from "@/lib/app-config-core";
 import { verifyError, verifyFromLines, verifyLine } from "@/lib/soak-config-core";
 import { analysisErrors, analysisFromDraft, emptyMetric, MAX_METRICS, metricDraft, DEFAULT_PROMETHEUS, type MetricDraft } from "@/lib/analysis-config-core";
+import { canaryErrors, canaryFromDraft, MAX_CANARY_STEPS, stepsDraft } from "@/lib/canary-config-core";
 import { mergeBuild, optionsFromBuild, presetOf, PRESET_LIST, validatePresetOptions, type PresetErrors, type PresetField, type PresetId, type PresetOptions } from "@/lib/presets-core";
 
 type AppRestart = Exclude<NonNullable<AppConfig["restart"]>, "">;
@@ -87,7 +88,7 @@ interface StepDraft {
 }
 
 /** What the app has that this form has no field for: it goes back as the file has it, so that saving the form loses nothing. */
-type Untouched = Pick<AppConfig, "previews" | "database" | "source" | "deploy">;
+type Untouched = Pick<AppConfig, "previews" | "database" | "source" | "deploy" | "enabled">;
 
 interface AppDraft {
   name: string;
@@ -114,6 +115,8 @@ interface AppDraft {
   stableAfter: string;
   drain: string;
   soak: string;
+  canarySteps: string;
+  canaryHold: string;
   verify: string[];
   analysisAddress: string;
   metrics: MetricDraft[];
@@ -166,6 +169,8 @@ export function draftFromApp(app: AppConfig | undefined): AppDraft {
   if (app?.database !== undefined) untouched.database = app.database;
   if (app?.source !== undefined) untouched.source = app.source;
   if (app?.deploy !== undefined) untouched.deploy = app.deploy;
+  // Stopping and starting an app is the Stop and Start buttons' business (app/app-run-actions.ts); a form save keeps what they set.
+  if (app?.enabled !== undefined) untouched.enabled = app.enabled;
   return {
     name: app?.name ?? "",
     project: app?.project ?? "",
@@ -188,6 +193,8 @@ export function draftFromApp(app: AppConfig | undefined): AppDraft {
     stableAfter: app?.stable_after ?? "",
     drain: app?.drain ?? "",
     soak: app?.soak ?? "",
+    canarySteps: stepsDraft(app),
+    canaryHold: app?.canary?.hold ?? "",
     verify: (app?.verify ?? []).map(verifyLine),
     analysisAddress: app?.analysis?.address ?? "",
     metrics: (app?.analysis?.metrics ?? []).map(metricDraft),
@@ -278,6 +285,8 @@ export function appFromDraft(d: AppDraft): AppConfig {
   if (soak) app.soak = soak;
   const verify = verifyFromLines(d.verify);
   if (verify.length > 0) app.verify = verify;
+  const canary = canaryFromDraft(d.canarySteps, d.canaryHold);
+  if (canary) app.canary = canary;
   const analysis = analysisFromDraft(d.analysisAddress, d.metrics);
   if (analysis) app.analysis = analysis;
   if (d.steps.length > 0) {
@@ -365,7 +374,8 @@ function validateApp(d: AppDraft, creating: boolean, existingNames: string[]): R
   if (soak) errors.soak = soak;
   const verify = verifyError(d.verify);
   if (verify) errors.verify = verify;
-  Object.assign(errors, analysisErrors(d.analysisAddress, d.metrics, d.soak));
+  Object.assign(errors, canaryErrors(d.canarySteps, d.canaryHold));
+  Object.assign(errors, analysisErrors(d.analysisAddress, d.metrics, d.soak, canaryFromDraft(d.canarySteps, "") ? { hold: d.canaryHold } : null));
 
   const logSize = optionalText(d.logMaxSize);
   if (logSize && !LOG_SIZE.test(logSize)) errors["log.max_size"] = "A number and k, m or g, for example 10m.";
@@ -398,7 +408,7 @@ const SECTION_FIELDS = {
   image: ["name", "project", "environment", "image", "restart", "command"],
   environment: ["env_file", "env"],
   networking: ["network", "publish", "volumes", "domains", "port", "health_path"],
-  timing: ["stop_timeout", "health_timeout", "stable_after", "drain", "soak", "verify"],
+  timing: ["stop_timeout", "health_timeout", "stable_after", "drain", "soak", "canary", "verify"],
   gates: ["analysis"],
   housekeeping: ["log", "keep_images"],
   release: ["release"],
@@ -801,6 +811,27 @@ export function AppForm({
             onChange={(v) => set("soak", v)}
             onBlur={touch("soak")}
             placeholder="30s"
+          />
+          <TextField
+            id={id("canary_steps")}
+            label="Canary steps"
+            help={`The share of visitors, in percent, that the new version receives one step after the other, rising: 1 to ${MAX_CANARY_STEPS} steps. 100 is the end of the rollout, it needs no step. Needs a Caddy proxy. Blank is a single switch.`}
+            error={fe.error("canary.steps")}
+            value={draft.canarySteps}
+            onChange={(v) => set("canarySteps", v)}
+            onBlur={touch("canary.steps")}
+            placeholder="10, 50"
+            mono
+          />
+          <DurationField
+            id={id("canary_hold")}
+            label="Hold per step"
+            help={`How long each step is watched, 10s to 10m. The pages checked and the metric gates run during every step. Default 1m. ${DURATION_HINT}`}
+            error={fe.error("canary.hold")}
+            value={draft.canaryHold}
+            onChange={(v) => set("canaryHold", v)}
+            onBlur={touch("canary.hold")}
+            placeholder="1m"
           />
         </div>
         <StringListField

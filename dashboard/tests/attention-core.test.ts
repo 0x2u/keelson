@@ -139,6 +139,24 @@ describe("apps", () => {
     expect(items({ apps: [app({ last_deployment: deployment({ status: "rollback_failed", trigger: "rollback" }) })] })[0].message).toBe("Rollback of shop v2 failed");
   });
 
+  it("stops flagging a failed or rolled back deployment a day after it ended, because the app serves what it served before", () => {
+    const old = (status: "failed" | "rolled_back") => app({ last_deployment: deployment({ status, started_at: ago(14 * 24 * HOUR), finished_at: ago(14 * 24 * HOUR - 1000) }) });
+    expect(items({ apps: [old("failed")] })).toEqual([]);
+    expect(items({ apps: [old("rolled_back")] })).toEqual([]);
+    const recent = app({ last_deployment: deployment({ status: "failed", finished_at: ago(23 * HOUR) }) });
+    expect(items({ apps: [recent] })).toHaveLength(1);
+  });
+
+  it("never stops flagging a deployment that left nothing known to serve", () => {
+    const stuck = app({ last_deployment: deployment({ status: "rollback_failed", started_at: ago(30 * 24 * HOUR), finished_at: ago(30 * 24 * HOUR) }) });
+    expect(items({ apps: [stuck] })[0]).toMatchObject({ severity: "critical", kind: "deployment" });
+  });
+
+  it("still flags an app whose container is down however old its last deployment is", () => {
+    const down = app({ last_deployment: deployment({ status: "failed", finished_at: ago(14 * 24 * HOUR) }) }, { running: false, exit_code: 1, finished_at: ago(MIN) });
+    expect(items({ apps: [down] }).map((i) => i.kind)).toEqual(["app-down"]);
+  });
+
   it("does not flag a deployment that succeeded after a failed one (the latest event wins)", () => {
     expect(items({ apps: [app({ last_deployment: deployment({ status: "succeeded" }) })] })).toEqual([]);
   });
@@ -314,5 +332,36 @@ describe("schedule periods", () => {
     expect(schedulePeriodMs("0 0 1 * *")).toBeGreaterThanOrEqual(28 * 24 * HOUR);
     expect(schedulePeriodMs("nonsense")).toBeNull();
     expect(schedulePeriodMs("61 * * * *")).toBeNull();
+  });
+});
+
+describe("an app stopped on purpose (enabled: false)", () => {
+  const exited = { running: false, status: "exited", exit_code: 0, finished_at: ago(5 * MIN) };
+
+  it("raises nothing for its stopped container, even with a failed last deployment", () => {
+    const failed = deployment({ status: "failed", error: "health check failed", finished_at: ago(2 * MIN) });
+    expect(items({ apps: [app({ enabled: false, last_deployment: failed }, exited)] })).toEqual([]);
+  });
+
+  it("raises nothing for no container although the last deployment succeeded, nor for never deployed", () => {
+    expect(items({ apps: [app({ enabled: false }, null)] })).toEqual([]);
+    expect(items({ apps: [app({ enabled: false, last_deployment: null }, null)] })).toEqual([]);
+  });
+
+  it("raises nothing for its managed container either (no double report as a bare container)", () => {
+    const managed: Container = { id: "x", name: "shop-1", image: "i", image_id: "", command: "", created: 0, state: "exited", status: "Exited (0)", labels: { "keelson.app": "shop" }, ports: [] };
+    expect(items({ apps: [app({ enabled: false }, exited)], containers: [managed] })).toEqual([]);
+  });
+
+  it("still flags an enabled app in the same situations, and an app that says enabled: true", () => {
+    const failed = deployment({ status: "failed", error: "boom", finished_at: ago(2 * MIN) });
+    expect(items({ apps: [app({ last_deployment: failed }, exited)] }).map((i) => i.kind)).toEqual(["app-down", "deployment"]);
+    expect(items({ apps: [app({ enabled: true }, exited)] })).toHaveLength(1);
+    expect(items({ apps: [app({ enabled: true }, null)] })).toHaveLength(1);
+  });
+
+  it("only silences the stopped app: a sibling that died is still flagged", () => {
+    const list = items({ apps: [app({ enabled: false }, exited), app({ name: "api" }, { running: false, exit_code: 1, finished_at: ago(MIN) })] });
+    expect(list.map((i) => i.subject)).toEqual(["api"]);
   });
 });

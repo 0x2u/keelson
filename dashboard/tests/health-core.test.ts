@@ -69,3 +69,12 @@ describe("assess", () => {
     expect(a).toEqual({ tone: "danger", reasons: ["1 app container stopped"] });
   });
 });
+
+describe("assess with apps stopped on purpose", () => {
+  const exited = (app: string) => ({ state: "exited", status: "Exited (0) 1 hour ago", labels: { "keelson.app": app } }) as unknown as Container;
+  it("does not count the container of a stopped app, and still counts any other", () => {
+    expect(assess(system(), [exited("shop")], new Set(["shop"]))).toEqual({ tone: "success", reasons: [] });
+    expect(assess(system(), [exited("shop"), exited("api")], new Set(["shop"])).reasons).toEqual(["1 app container stopped"]);
+    expect(assess(system(), [exited("shop")]).reasons).toEqual(["1 app container stopped"]);
+  });
+});

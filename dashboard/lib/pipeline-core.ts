@@ -4,13 +4,13 @@ import { versionOf } from "@/lib/image-ref-core";
 import { deployVerb } from "@/lib/labels-core";
 import { PIPELINE_STEPS, type StatusView } from "@/lib/status";
 
-// The pipeline of a deployment: Source, Build, Release, Switch, Soak, Live. The agent reports the phases a deployment
+// The pipeline of a deployment: Source, Build, Release, Switch, Canary, Soak, Live. The agent reports the phases a deployment
 // reached (or skipped on purpose); this turns them into the steps a page draws. Pure: components only render it.
 
 /** The pipeline order. */
-export const PHASE_ORDER: readonly PhaseName[] = ["source", "build", "release", "switch", "soak", "live"];
+export const PHASE_ORDER: readonly PhaseName[] = ["source", "build", "release", "switch", "canary", "soak", "live"];
 
-const LABELS: Record<PhaseName, string> = { source: "Source", build: "Build", release: "Release", switch: "Switch", soak: "Soak", live: "Live" };
+const LABELS: Record<PhaseName, string> = { source: "Source", build: "Build", release: "Release", switch: "Switch", canary: "Canary", soak: "Soak", live: "Live" };
 
 export const phaseLabel = (name: PhaseName): string => LABELS[name];
 
@@ -55,7 +55,8 @@ const STATE_OF: Record<DeploymentPhase["status"], StepState> = { running: "runni
  * did): the page then shows what it always showed. Rules, the same on every page:
  * - a phase the agent reported is drawn as reported, in pipeline order;
  * - Source and Build that were never reported are left out (a plain image deploy has none), except for a deployment that
- *   was built on another server, where they are drawn as "Built on another server";
+ *   was built on another server, where they are drawn as "Built on another server"; Canary that was never reported is
+ *   left out too (only an app with a canary and a previous version has one);
  * - after the last reported phase: "Not started" while the deployment runs, "Not reached" when it ended before them, and
  *   nothing when it succeeded (a phase that does not apply, such as the soak of an in-place app, is simply absent).
  */
@@ -69,6 +70,7 @@ export function pipeline(d: PipelineSource): Pipeline | null {
   PHASE_ORDER.forEach((name, i) => {
     const p = byName.get(name);
     if (p) steps.push(step(name, STATE_OF[p.status], p));
+    else if (name === "canary") return;
     else if (i < first) {
       if (d.trigger === "transfer" && (name === "source" || name === "build")) steps.push(step(name, "elsewhere"));
     } else if (i > last) {

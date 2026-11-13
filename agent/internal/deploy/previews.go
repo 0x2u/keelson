@@ -213,6 +213,9 @@ func (d *Deployer) startPreview(ctx context.Context, app string, pr int, target 
 	if !ok || !parentOK {
 		return PreviewStarted{}, nil, ErrNoPreview
 	}
+	if err := refuseStopped(parent); err != nil {
+		return PreviewStarted{}, nil, err // a stopped app makes no preview
+	}
 	ref, err := target.Ref(parent.Image)
 	if err != nil {
 		return PreviewStarted{}, nil, err

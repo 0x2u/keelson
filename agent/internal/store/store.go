@@ -33,6 +33,7 @@ const (
 	PhaseBuild   = "build"   // the image build
 	PhaseRelease = "release" // fetching the image and running the release steps
 	PhaseSwitch  = "switch"  // starting the new version, its health gate, the traffic switch and the drain
+	PhaseCanary  = "canary"  // a canary deployment: the share of visitors the new version receives, step by step
 	PhaseSoak    = "soak"    // watching the new version after the switch
 	PhaseLive    = "live"    // final cleanup, until the deployment is recorded
 )

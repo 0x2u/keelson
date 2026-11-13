@@ -82,6 +82,9 @@ func (d *Deployer) StartBuild(ctx context.Context, app, sha string, src build.So
 	if !ok {
 		return "", nil, ErrUnknownApp
 	}
+	if err := refuseStopped(a); err != nil {
+		return "", nil, err
+	}
 	return d.startBuild(ctx, a, sha, src, launchOpts{committedAt: committedAt})
 }
 

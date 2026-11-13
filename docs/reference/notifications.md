@@ -23,7 +23,7 @@ notifications:
 | `deployment.failed` | A deployment ended without touching the serving version (bad tag, failed pull, health check refused). |
 | `deployment.rolled_back` | The new version failed and the previous one is serving again. |
 | `deployment.rollback_failed` | The new version failed **and** the previous one could not be restored: the app may be down. |
-| `app.down` | An app's container has been not running, restarting in a loop, unhealthy or gone for three checks in a row (15 s apart). |
+| `app.down` | An app's container has been not running, restarting in a loop, unhealthy or gone for three checks in a row (15 s apart). Never for an app the file stops with `enabled: false` ([Stopping an app](./deployments.md#stopping-an-app)). |
 | `app.recovered` | The app is back; the message says how long it was down. |
 | `job.failed` | A scheduled job has failed `alert_after` times in a row (default 1). Sent once per streak; again at the next failed run (at least 15 minutes later) when the alert did not get through (Telegram unreachable at that moment), and again every `realert_after` (24h by default, `0s` never) while the streak goes on. The message says how many runs failed; an HTTP job's response body is never in it. |
 | `job.recovered` | A job that had raised `job.failed` succeeded again. |

@@ -1,5 +1,6 @@
 import type { AppConfig, AppStatus, JobStatus } from "@/lib/agent-types";
-import { HIDDEN } from "@/lib/agent-types";
+import { appStopped, HIDDEN } from "@/lib/agent-types";
+import { STOPPED_REASON } from "@/lib/app-run-core";
 import { healthFromStatus } from "@/lib/format";
 import { splitRef } from "@/lib/image-ref-core";
 import { containerStatus, ENVIRONMENTS, PLACEMENTS, type StatusView, type Tone } from "@/lib/status";
@@ -79,6 +80,7 @@ export interface Health {
 
 /** What to show for an app's container: the container vocabulary (Running, Healthy, Starting, Unhealthy, Restarting, Stopped...) or Not deployed. */
 export function placementHealth(app: AppStatus): Health {
+  if (appStopped(app)) return PLACEMENTS.stopped;
   const c = app.container;
   if (!c) return PLACEMENTS.notDeployed;
   const state = c.state.restarting ? "restarting" : c.state.running ? "running" : c.state.status;
@@ -100,9 +102,11 @@ export interface EnvironmentState extends StatusView {
  * Where an environment stands, in one word (the table is ENVIRONMENTS in lib/status): Deploying while a deployment runs,
  * Running while the container serves (with `lastFailed` and a warning when the newest deployment did not work), Starting
  * while the container is coming up, Down when the container is stopped or unwell or its last deployment succeeded yet
- * nothing runs, Error when the last deployment failed and nothing runs, Not deployed before the first deployment.
+ * nothing runs, Error when the last deployment failed and nothing runs, Not deployed before the first deployment. An app
+ * stopped on purpose (`enabled: false`) is Stopped, muted: it is neither Down nor an error, whatever its container or its last deployment say.
  */
 export function environmentState(app: AppStatus): EnvironmentState {
+  if (appStopped(app)) return { ...ENVIRONMENTS.stopped, lastFailed: false };
   const last = app.last_deployment;
   const lastFailed = last !== null && FAILED_DEPLOYMENT.includes(last.status);
   if (last?.status === "running") return { ...ENVIRONMENTS.deploying, lastFailed: false };
@@ -137,6 +141,8 @@ export type Promotion =
 export function planPromotion(from: Placement, to: Placement): Promotion {
   if (from.server.id === to.server.id && from.app.name === to.app.name) return { ok: false, reason: "That is the same app." };
   if (!to.server.canDeploy) return { ok: false, reason: `${to.server.name} has no deploy secret in this dashboard: it cannot deploy.` };
+  if (appStopped(to.app)) return { ok: false, reason: STOPPED_REASON };
+  if (appStopped(from.app)) return { ok: false, reason: `${environmentOf(from.app)} is stopped: start it first to promote what it serves.` };
   if (!from.app.container) return { ok: false, reason: `Nothing is running in ${environmentOf(from.app)} to promote.` };
   if (!from.app.digest) return { ok: false, reason: `The image serving in ${environmentOf(from.app)} has no registry digest (it was built locally?), so there is no exact version to promote.` };
   if (from.app.image !== to.app.image) return { ok: false, reason: `The two apps use different images (${from.app.image} and ${to.app.image}): a digest only names an image of one repository.` };

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -668,5 +669,82 @@ func TestWebPostgresExample(t *testing.T) {
 	}
 	if len(c.Jobs) != 1 || c.Jobs[0].Name != "prune-guestbook" {
 		t.Errorf("the example's cron job is part of the file: %+v", c.Jobs)
+	}
+}
+
+func TestEnabledFalseStopsAnApp(t *testing.T) {
+	c, err := Load(write(t, "apps:\n  - name: on\n    image: o/on\n  - name: explicit\n    image: o/explicit\n    enabled: true\n  - name: off\n    image: o/off\n    enabled: false\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]bool{"on": true, "explicit": true, "off": false} {
+		if a, _ := c.App(name); a.IsEnabled() != want {
+			t.Errorf("%s: IsEnabled = %v, want %v", name, a.IsEnabled(), want)
+		}
+	}
+	out, err := c.RuntimeJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dump struct {
+		Apps []struct {
+			Name    string
+			Enabled bool
+		}
+	}
+	if err := json.Unmarshal(out, &dump); err != nil || len(dump.Apps) != 3 {
+		t.Fatalf("%v: %s", err, out)
+	}
+	for _, a := range dump.Apps {
+		if a.Enabled != (a.Name != "off") {
+			t.Errorf("runtime dump of %s: enabled = %v", a.Name, a.Enabled)
+		}
+	}
+
+	// a preview instance never inherits it: whether to make previews is the stopped parent's to refuse, not the instance's
+	p, issues := Parse([]byte("proxy: {}\napps:\n  - name: shop\n    image: o/shop\n    enabled: false\n    domains: [shop.example.com]\n    port: 3000\npreviews:\n  - {app: shop, domain: 'pr-{pr}.example.com'}\n"))
+	if p == nil {
+		t.Fatalf("%+v", issues)
+	}
+	parent, _ := p.App("shop")
+	tpl, _ := p.Previews("shop")
+	if inst := tpl.Instance(parent, 4); !inst.IsEnabled() {
+		t.Error("an instance of a stopped app runs unless it is itself stopped: enabled must not be inherited")
+	}
+
+	// a builder has no container to stop
+	_, err = Load(write(t, "apps:\n  - name: b\n    image: keelson-local/b\n    build: {only: true}\n    enabled: false\n"))
+	if err == nil || !strings.Contains(err.Error(), "enabled: false") || !strings.Contains(err.Error(), "build.only") {
+		t.Errorf("enabled: false on a build-only app must be refused with the reason: %v", err)
+	}
+	if _, err := Load(write(t, "apps:\n  - name: b\n    image: keelson-local/b\n    build: {only: true}\n    enabled: true\n")); err != nil {
+		t.Errorf("enabled: true is the default, even on a builder: %v", err)
+	}
+	if _, err := Load(write(t, "apps:\n  - name: a\n    image: o/a\n    enabled: maybe\n")); err == nil {
+		t.Error("enabled is a boolean")
+	}
+}
+
+// The dashboard stops and starts an app by editing this key through the config API: the key must survive an edit of the
+// entity, and go where the other identity keys are.
+func TestEnabledSurvivesAnEntityEdit(t *testing.T) {
+	doc := []byte("apps:\n  - name: web\n    image: o/web\n")
+	out, issues, err := SetApp(doc, "web", map[string]any{"name": "web", "image": "o/web", "enabled": false})
+	if err != nil || len(issues) != 0 {
+		t.Fatalf("%v %+v", err, issues)
+	}
+	if !strings.Contains(string(out), "name: web\n    enabled: false\n    image: o/web") {
+		t.Errorf("enabled belongs next to the identity keys:\n%s", out)
+	}
+	c, err := Load(write(t, string(out)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := c.App("web"); a.IsEnabled() {
+		t.Error("the app must load stopped")
+	}
+	out, _, err = SetApp(out, "web", map[string]any{"name": "web", "image": "o/web"})
+	if err != nil || strings.Contains(string(out), "enabled") {
+		t.Errorf("removing the key starts the app again: %v\n%s", err, out)
 	}
 }

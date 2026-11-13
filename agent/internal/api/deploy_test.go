@@ -35,6 +35,8 @@ type fakeDeployments struct {
 	// "restart name".
 	containerErrs map[string]error
 	containerActs []string
+	// apps, when set, is what GET /v1/apps lists.
+	apps []deploy.AppStatus
 }
 
 func (f *fakeDeployments) StartContainer(_ context.Context, name string) error {
@@ -65,6 +67,9 @@ func (f *fakeDeployments) Rollback(_ context.Context, app string) (string, <-cha
 	return "dep2", nil, nil
 }
 func (f *fakeDeployments) Apps(context.Context) ([]deploy.AppStatus, error) {
+	if f.apps != nil {
+		return f.apps, nil
+	}
 	return []deploy.AppStatus{{Name: "web", Image: "o/web"}}, nil
 }
 func (f *fakeDeployments) Deployment(_ context.Context, id string) (store.Deployment, error) {
@@ -257,6 +262,7 @@ func TestDeployErrorsMapToStatus(t *testing.T) {
 		{deploy.ErrUnknownApp, 404},
 		{deploy.ErrInvalidTarget, 400},
 		{deploy.ErrBusy, 409},
+		{&deploy.StoppedError{App: "web"}, 409},
 		{deploy.ErrNoRollbackTarget, 409},
 		{errors.New("disk on fire"), 500},
 	}
@@ -267,6 +273,36 @@ func TestDeployErrorsMapToStatus(t *testing.T) {
 		if got != c.want {
 			t.Errorf("%v: want %d, got %d", c.err, c.want, got)
 		}
+	}
+}
+
+// A deployment of an app the file stops is refused with a 409 that says what to do, on both ways to deploy.
+func TestDeployingAStoppedAppIsA409WithItsReason(t *testing.T) {
+	e := newDeployServer(t)
+	e.fake.startErr = &deploy.StoppedError{App: "web"}
+	for i, path := range []string{"/v1/apps/web/deploy", "/v1/apps/web/rollback"} {
+		resp := e.post(t, path, `{"tag":"v1"}`, testSecret, time.Now().Add(time.Duration(i)*time.Second))
+		var out struct{ Error string }
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusConflict || out.Error != "app web is stopped (enabled: false): start it first" {
+			t.Errorf("%s: %d %q", path, resp.StatusCode, out.Error)
+		}
+	}
+}
+
+// GET /v1/apps always says whether the file stops an app: the dashboard has no other way to tell.
+func TestAppsListCarriesEnabledForEveryApp(t *testing.T) {
+	e := newDeployServer(t)
+	e.fake.apps = []deploy.AppStatus{{Name: "on", Enabled: true}, {Name: "off", Enabled: false}}
+	resp := do(t, "GET", e.srv.URL+"/v1/apps", testToken)
+	var out []map[string]any
+	if resp.StatusCode != 200 || json.NewDecoder(resp.Body).Decode(&out) != nil || len(out) != 2 {
+		t.Fatalf("status %d, %v", resp.StatusCode, out)
+	}
+	if out[0]["enabled"] != true || out[1]["enabled"] != false {
+		t.Errorf("enabled must be present and exact for each app: %v", out)
 	}
 }
 

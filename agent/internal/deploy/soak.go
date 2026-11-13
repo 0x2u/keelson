@@ -87,10 +87,15 @@ func (d *Deployer) checkAdoption(ctx context.Context, a config.App) error {
 //
 // What the pages show is what 127.0.0.1 sees: the app, not Cloudflare, the proxy or DNS.
 func (d *Deployer) soak(ctx context.Context, id string, a config.App, name, ref string, port int) error {
+	return d.watch(ctx, id, a, name, ref, port, a.SoakFor(), "")
+}
+
+// watch is the soak, for any length of time: the soak itself, and each step of a canary (label says which, such as
+// "canary 10%: ", and is put before its events). Gates are made afresh, so a step is judged by its own evaluations.
+func (d *Deployer) watch(ctx context.Context, id string, a config.App, name, ref string, port int, wait time.Duration, label string) error {
 	checks := d.soakChecks(a)
 	gates := d.newGates(a, name, ref)
-	wait := a.SoakFor()
-	d.event(id, "info", "watching the new version for %s (%s)", wait, describeChecks(checks, gates))
+	d.event(id, "info", "%swatching the new version for %s (%s)", label, wait, describeChecks(checks, gates))
 	deadline := d.now().Add(wait)
 	rounds := 0
 	round := func() error {
@@ -132,7 +137,7 @@ func (d *Deployer) soak(ctx context.Context, id string, a config.App, name, ref 
 	if len(gates) > 0 {
 		d.event(id, "info", "metrics: %s", summarizeGates(gates))
 	}
-	d.event(id, "info", "the new version held for the full %s (%d checks of %s)", wait, rounds, describeChecks(checks, gates))
+	d.event(id, "info", "%sthe new version held for the full %s (%d checks of %s)", label, wait, rounds, describeChecks(checks, gates))
 	return nil
 }
 

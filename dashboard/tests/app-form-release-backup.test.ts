@@ -52,3 +52,17 @@ describe("a release step that backs a database up", () => {
     expect(toHost.release?.steps[0]).toEqual({ name: "backup", host: ["./backup.sh"], timeout: "20m" });
   });
 });
+
+describe("an app stopped on purpose (enabled: false)", () => {
+  it("stays stopped when the form saves it: the form has no field for it and loses nothing", () => {
+    const stopped: AppConfig = { ...PRODUCTION, enabled: false };
+    expect(appFromDraft(draftFromApp(stopped))).toEqual(stopped);
+    expect(appFromDraft(draftFromApp(stopped)).enabled).toBe(false);
+  });
+
+  it("adds no key to an app that runs, and shows no enabled field", () => {
+    expect("enabled" in appFromDraft(draftFromApp(PRODUCTION))).toBe(false);
+    const out = renderToStaticMarkup(createElement(AppForm, { serverId: "s1", baseHash: "h", app: { ...PRODUCTION, enabled: false }, existingNames: ["shop"], hasProxy: true }));
+    expect(out).not.toMatch(/enabled/i);
+  });
+});

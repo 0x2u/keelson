@@ -38,6 +38,7 @@ func (d *Deployer) executeProxied(ctx context.Context, id string, a config.App, 
 
 	name := spec.Name
 	fail := func(cause error) (string, error) {
+		d.dropCanary(ctx, a.Name) // no-op unless a canary is under way: no visitor may be sent to a container about to go
 		d.event(id, "error", "new container failed: %v", cause)
 		d.recordOutput(id, name) // before the container goes: its output is the cause
 		if err := d.eng.Remove(ctx, name); err != nil && !docker.IsNotFound(err) {
@@ -75,6 +76,17 @@ func (d *Deployer) executeProxied(ctx context.Context, id string, a config.App, 
 			return fail(err)
 		}
 		d.event(id, "info", "http://127.0.0.1:%d%s answers", port, a.HealthPath)
+	}
+
+	if a.Canary != nil {
+		if hadOld {
+			d.phase(id, store.PhaseCanary)
+			if err := d.rollout(ctx, id, a, name, ref, port, old); err != nil {
+				return d.undoCanary(ctx, id, a, name, err)
+			}
+		} else {
+			d.event(id, "info", "nothing was serving before this version, so there are no visitors to share: the canary is skipped")
+		}
 	}
 
 	d.event(id, "info", "switching traffic to 127.0.0.1:%d", port)
@@ -141,6 +153,115 @@ func (d *Deployer) undoSwitch(ctx context.Context, id string, a config.App, name
 		d.event(id, "warn", "could not remove %s: %v", name, err)
 	}
 	return store.StatusRolledBack, fmt.Errorf("the new version failed during the soak: %w", cause)
+}
+
+// rollout shares the visitors between the version that serves and the new one, a step at a time: each step gives the
+// new version its share, then watches it (the container, the verify paths, the metrics) for the hold. It ends when the
+// last step held; the caller then switches everything. An error is a step that failed, with the share it was at.
+func (d *Deployer) rollout(ctx context.Context, id string, a config.App, name, ref string, port int, old store.AppState) error {
+	upstream := "127.0.0.1:" + strconv.Itoa(port)
+	for _, pct := range a.Canary.Steps {
+		d.event(id, "info", "canary %d%%: %d%% of the visitors go to the new version, the others stay on %s", pct, pct, old.Ref)
+		c := proxy.Canary{Upstream: upstream, Percent: pct, Key: id + "-" + strconv.Itoa(pct)}
+		if err := d.setCanary(ctx, a.Name, &c); err != nil {
+			return fmt.Errorf("canary %d%%: share the traffic: %w", pct, err)
+		}
+		if err := d.watch(ctx, id, a, name, ref, port, a.Canary.HoldFor(), fmt.Sprintf("canary %d%%: ", pct)); err != nil {
+			return fmt.Errorf("canary %d%%: %w", pct, err)
+		}
+	}
+	d.event(id, "info", "the new version held at every step of the canary: it takes all the traffic")
+	return nil
+}
+
+// undoCanary is what a failure during the canary does. The previous version never stopped and kept the visitors who were
+// not sent to the new one: the proxy goes back to it alone, and the new container is removed (its last output kept as
+// events). The deployment ends rolled back.
+func (d *Deployer) undoCanary(ctx context.Context, id string, a config.App, name string, cause error) (string, error) {
+	d.event(id, "error", "the canary failed: %v", cause)
+	d.recordOutput(id, name) // before the container goes: its output is the cause
+	cctx, cancel := cleanupContext(ctx)
+	defer cancel()
+	d.event(id, "warn", "sending every visitor back to the previous version")
+	if err := d.endCanary(cctx, a.Name); err != nil {
+		d.event(id, "error", "could not take the new version out of the proxy: %v", err)
+		return store.StatusRollbackFailed, fmt.Errorf("the canary failed (%v) and the proxy could not be put back: %w", cause, err)
+	}
+	d.event(id, "info", "every visitor is on the previous version again")
+	if err := d.eng.Stop(cctx, name, int(a.Stop().Seconds())); err != nil && !docker.IsNotFound(err) {
+		d.event(id, "warn", "could not stop %s: %v", name, err)
+	}
+	if err := d.eng.Remove(cctx, name); err != nil && !docker.IsNotFound(err) {
+		d.event(id, "warn", "could not remove %s: %v", name, err)
+	}
+	return store.StatusRolledBack, fmt.Errorf("the canary failed: %w", cause)
+}
+
+// setCanary gives the new version of app its share of the visitors, as one step under proxyMu. When the proxy refuses it
+// nothing changes.
+func (d *Deployer) setCanary(ctx context.Context, app string, c *proxy.Canary) error {
+	d.proxyMu.Lock()
+	defer d.proxyMu.Unlock()
+	prev, had := d.canaries[app]
+	if d.canaries == nil {
+		d.canaries = map[string]proxy.Canary{}
+	}
+	d.canaries[app] = *c
+	routes, err := d.routesFromState(ctx, nil)
+	if err == nil {
+		err = d.proxyDriver().Apply(ctx, routes)
+	}
+	if err != nil {
+		if had {
+			d.canaries[app] = prev
+		} else {
+			delete(d.canaries, app)
+		}
+		return err
+	}
+	d.applied, d.appliedSet = routes, true
+	return nil
+}
+
+// endCanary puts every visitor of app back on the version in app_state.
+func (d *Deployer) endCanary(ctx context.Context, app string) error {
+	d.proxyMu.Lock()
+	defer d.proxyMu.Unlock()
+	prev, had := d.canaries[app]
+	if !had {
+		return nil
+	}
+	delete(d.canaries, app)
+	routes, err := d.routesFromState(ctx, nil)
+	if err == nil {
+		err = d.proxyDriver().Apply(ctx, routes)
+	}
+	if err != nil {
+		d.canaries[app] = prev // the proxy still shares the traffic: the reconciler must not be told otherwise
+		return err
+	}
+	d.applied, d.appliedSet = routes, true
+	return nil
+}
+
+// dropCanary is endCanary for a deployment that failed for another reason: best effort, on a context that survives the
+// deployment's own. A proxy that cannot be reached is put right by the reconciler, which no longer knows the canary.
+func (d *Deployer) dropCanary(ctx context.Context, app string) {
+	cctx, cancel := cleanupContext(ctx)
+	defer cancel()
+	if err := d.endCanary(cctx, app); err != nil {
+		d.log.Warn("could not take a canary out of the proxy", "app", app, "err", err)
+	}
+}
+
+// withCanaries adds the canaries under way to the routes of their apps. The caller holds proxyMu.
+func (d *Deployer) withCanaries(routes []proxy.Route) []proxy.Route {
+	for i := range routes {
+		if c, ok := d.canaries[routes[i].App]; ok {
+			routes[i].Canary = &c
+		}
+	}
+	return routes
 }
 
 // servingState returns what currently serves the app. Normally that is
@@ -259,11 +380,22 @@ func (d *Deployer) switchTraffic(ctx context.Context, st store.AppState) error {
 	d.proxyMu.Lock()
 	defer d.proxyMu.Unlock()
 
+	// From here st alone serves the app: a canary ends with the switch, in the same step, so that the visitors never
+	// go back to the previous version in between.
+	prev, hadCanary := d.canaries[st.App]
+	delete(d.canaries, st.App)
+	restore := func() {
+		if hadCanary {
+			d.canaries[st.App] = prev
+		}
+	}
 	routes, err := d.routesFromState(ctx, &st)
 	if err != nil {
+		restore()
 		return err
 	}
 	if err := d.proxyDriver().Apply(ctx, routes); err != nil {
+		restore()
 		return err
 	}
 	d.applied, d.appliedSet = routes, true
@@ -312,7 +444,44 @@ func (d *Deployer) buildRoutes(ctx context.Context, override *store.AppState, sk
 		}
 	}
 	sortRoutes(routes)
-	return d.withPlaceholders(routes, apps), nil
+	return d.withPlaceholders(withStopped(d.withCanaries(routes), apps, byApp), apps), nil
+}
+
+// withStopped gives every proxied app the file stops (enabled: false) a route that says so, in place of whatever route it
+// had: its hosts answer "stopped", not a 502 for a container that is down on purpose. byApp holds the states, for the
+// address nginx's upstream block of the app keeps naming.
+func withStopped(routes []proxy.Route, apps []config.App, byApp map[string]store.AppState) []proxy.Route {
+	var stopped map[string]proxy.Route
+	for _, a := range apps {
+		if a.IsEnabled() || !a.Proxied() {
+			continue
+		}
+		r := proxy.Route{App: a.Name, Hosts: a.Domains, Stopped: true}
+		switch st := byApp[a.Name]; {
+		case len(a.HostPorts) > 0:
+			r.Upstream = "127.0.0.1:" + strconv.Itoa(a.HostPorts[0])
+		case st.HostPort != 0:
+			r.Upstream = "127.0.0.1:" + strconv.Itoa(st.HostPort)
+		}
+		if stopped == nil {
+			stopped = map[string]proxy.Route{}
+		}
+		stopped[a.Name] = r
+	}
+	if stopped == nil {
+		return routes
+	}
+	out := make([]proxy.Route, 0, len(routes)+len(stopped))
+	for _, r := range routes {
+		if _, ok := stopped[r.App]; !ok {
+			out = append(out, r)
+		}
+	}
+	for _, r := range stopped {
+		out = append(out, r)
+	}
+	sortRoutes(out)
+	return out
 }
 
 // withPlaceholders adds, for each app that declares host ports and has no route, a route to its first port.
@@ -375,10 +544,12 @@ func (d *Deployer) Reconcile(ctx context.Context) error {
 		byName[a.Name] = a
 	}
 	var routes []proxy.Route
+	byApp := make(map[string]store.AppState, len(states))
 	for _, st := range states {
+		byApp[st.App] = st
 		a, ok := byName[st.App]
-		if !ok || !a.Proxied() {
-			continue
+		if !ok || !a.Proxied() || !a.IsEnabled() {
+			continue // (a stopped app has its own route, below)
 		}
 		det, err := d.eng.Inspect(ctx, st.Container)
 		if err != nil {
@@ -404,7 +575,7 @@ func (d *Deployer) Reconcile(ctx context.Context) error {
 		}
 		routes = append(routes, proxy.Route{App: a.Name, Hosts: a.Domains, Upstream: "127.0.0.1:" + strconv.Itoa(port)})
 	}
-	routes = d.withPlaceholders(sortedRoutes(routes), apps)
+	routes = d.withPlaceholders(withStopped(d.withCanaries(sortedRoutes(routes)), apps, byApp), apps)
 
 	// Drift means the proxy lost what *this* agent had put there. Before the first apply of the process there is
 	// nothing to have lost: a proxy that serves something else is simply not configured yet.
@@ -452,16 +623,23 @@ func (d *Deployer) proxyDrifted(ctx context.Context, routes []proxy.Route) bool 
 	return ok && c.Drifted(ctx, routes)
 }
 
-// RunReconciler calls Reconcile every interval until ctx ends.
+// RunReconciler calls EnforceStopped and Reconcile every interval until ctx ends.
 func (d *Deployer) RunReconciler(ctx context.Context, every time.Duration) {
 	t := time.NewTicker(every)
 	defer t.Stop()
-	var last string
+	var last, lastStop string
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			// The apps the file stops first: the route that follows then says so about a container that is down.
+			if err := d.EnforceStopped(ctx); err != nil && ctx.Err() == nil && err.Error() != lastStop {
+				d.log.Warn("could not stop a container of an app that is stopped (said once while the cause is the same)", "err", err)
+				lastStop = err.Error()
+			} else if err == nil {
+				lastStop = ""
+			}
 			err := d.Reconcile(ctx)
 			if ctx.Err() == nil {
 				d.logReconcile(&last, err)

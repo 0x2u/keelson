@@ -1,4 +1,4 @@
-import type { AppStatus, ConfigDocument, ConfigModel, DatabaseBackupConfig, DatabaseStatus, Deployment, Proof, RestoreTest } from "@/lib/agent-types";
+import { appStopped, type AppStatus, type ConfigDocument, type ConfigModel, type DatabaseBackupConfig, type DatabaseStatus, type Deployment, type Proof, type RestoreTest } from "@/lib/agent-types";
 import { agentUpdate } from "@/lib/agent-binaries-core";
 import { firstLine, spanText } from "@/lib/attention-core";
 import type { Loaded } from "@/lib/data";
@@ -320,6 +320,12 @@ function appItems(input: ServerReadinessInput, now: number): ReadinessItem[] {
     // A preview environment is not in the apps file: it is judged with the app whose template made it.
     if (config !== null && !config.apps?.some((a) => a.name === app.name)) continue;
     const appHref = `/servers/${server.id}/apps/${enc(app.name)}`;
+    // Stopped on purpose: there is no running app to check, so neither a health check nor a rollback target is asked of it.
+    if (appStopped(app)) {
+      const detail = "Stopped on purpose (enabled: false): checked again once it runs.";
+      out.push(item("health", "project", app.name, server, { state: "na", detail }), item("rollback", "project", app.name, server, { state: "na", detail }));
+      continue;
+    }
     const source = healthSource(app, config);
     out.push(
       source !== null

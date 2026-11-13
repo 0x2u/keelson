@@ -39,8 +39,14 @@ func (d *Deployer) act(ctx context.Context, name string, restart bool) error {
 	stop := int(config.DefaultStopTimeout.Seconds())
 	if a, ok, err := d.lookupApp(ctx, app); err != nil {
 		return err
-	} else if ok && a.Stop() > 0 {
-		stop = int(a.Stop().Seconds())
+	} else if ok {
+		// It would be stopped again at the next reconcile: it is refused, not started for a few seconds.
+		if err := refuseStopped(a); err != nil {
+			return err
+		}
+		if a.Stop() > 0 {
+			stop = int(a.Stop().Seconds())
+		}
 	}
 	if !d.reserve(app) {
 		return ErrBusy

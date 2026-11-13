@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ICONS } from "@/lib/icons";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { appStopped } from "@/lib/agent-types";
 import { neverDeployed } from "@/lib/app-version-core";
 import { buildBlock } from "@/lib/build-now-core";
 import { githubAppSummary } from "@/lib/integrations";
@@ -86,6 +87,7 @@ export default async function ProjectTabsLayout({ children, params }: { children
               current={app.container?.image ?? ""}
               history={primary.history}
               neverDeployed={neverDeployed(app, primary.history)}
+              stopped={appStopped(app)}
               source={
                 primary.builds
                   ? {

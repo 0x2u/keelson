@@ -223,6 +223,11 @@ export function dashboardCopy(): StepUp {
   return need("The copy holds every server's credentials (encrypted) and the sign-in data of this dashboard.");
 }
 
+/** Updating the dashboard to a new release: the host replaces the code that holds every server's credentials, and restarts it. */
+export function dashboardUpdate(version: string): StepUp {
+  return need(`Updating the dashboard to ${version} replaces the code that holds every server's credentials and restarts it.`);
+}
+
 /** Whichever of the sections of a model the submitted entity belongs to: used by the tests to look at a whole document. */
 export function findApp(model: ConfigModel | null | undefined, name: string): AppConfig | undefined {
   return model?.apps?.find((a) => a.name === name);

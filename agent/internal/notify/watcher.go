@@ -21,6 +21,9 @@ type AppState struct {
 	// Busy means a deployment is changing the app right now: its container is
 	// expected to stop, start and be unhealthy for a while.
 	Busy bool
+	// Stopped means the file stops the app (enabled: false): its container is meant to be down, which is no outage, and
+	// no other field says anything.
+	Stopped bool
 }
 
 // Source reports the state of every configured app.
@@ -123,6 +126,16 @@ func (w *Watcher) Check(ctx context.Context) error {
 		if st == nil {
 			st = &watched{}
 			w.apps[a.Name] = st
+		}
+		if a.Stopped {
+			// Down on purpose: nothing to alert, and an incident that was open ends here, as it would if the app came back.
+			// Whatever follows (the app started again) is judged afresh.
+			st.bad, st.alerted, st.held = 0, false, false
+			if st.down {
+				st.down = false
+				w.persist(ctx, a.Name, false)
+			}
+			continue
 		}
 		if a.Present {
 			st.seen = true

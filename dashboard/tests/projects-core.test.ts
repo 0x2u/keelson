@@ -214,3 +214,32 @@ describe("promotionView", () => {
     expect(promotionView(pl("staging", "ghcr.io/me/web:v3", D1), pl("production", "ghcr.io/me/web:v3", D1)).same).toBe(true);
   });
 });
+
+describe("an app stopped on purpose (enabled: false)", () => {
+  const exited = { status: "exited", running: false, paused: false, restarting: false, oom_killed: false, exit_code: 0 };
+  const stopped = (over: Partial<AppStatus> = {}) => {
+    const a = app({ enabled: false, ...over });
+    if (a.container) a.container.state = exited;
+    return a;
+  };
+
+  it("is Stopped and muted, not Down or Error, whatever the container and the last deployment say", () => {
+    expect(environmentState(stopped())).toMatchObject({ tone: "muted", label: "Stopped", lastFailed: false });
+    expect(environmentState(stopped({ container: null, last_deployment: { id: "d", app: "web", ref: "r", status: "failed", trigger: "api", started_at: "2026-10-01T00:00:00Z" } }))).toMatchObject({ tone: "muted", label: "Stopped" });
+    expect(placementHealth(stopped())).toEqual({ tone: "muted", label: "Stopped" });
+  });
+
+  it("leaves the same app, enabled and with a stopped container, Down", () => {
+    const a = app();
+    if (a.container) a.container.state = exited;
+    expect(environmentState(a)).toMatchObject({ tone: "danger", label: "Down" });
+    expect(placementHealth(a)).toMatchObject({ tone: "danger", label: "Stopped" });
+  });
+
+  it("cannot be promoted from or to", () => {
+    const run = place(server("1"), app({ name: "prod" }));
+    const off = place(server("1"), stopped({ name: "stg" }));
+    expect(planPromotion(run, off)).toEqual({ ok: false, reason: "Stopped: start it first." });
+    expect(planPromotion(off, run)).toMatchObject({ ok: false, reason: expect.stringContaining("is stopped") });
+  });
+});

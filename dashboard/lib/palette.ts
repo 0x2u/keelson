@@ -1,5 +1,6 @@
 import "server-only";
 import { agentFor } from "@/lib/agent";
+import { appStopped } from "@/lib/agent-types";
 import { APP_LABEL } from "@/lib/container-core";
 import { hostsOf } from "@/lib/domain-status-core";
 import { load } from "@/lib/data";
@@ -32,7 +33,7 @@ async function indexServer(s: { id: string; name: string; canDeploy: boolean }):
   const facts: OwnerFacts = { apps: apps.data ?? [], jobs: jobs.data ?? [], databases: databases.data ?? [], config: config.data?.model ?? null };
   const project = (owner: string | null) => (owner === null ? {} : { project: owner });
   return {
-    apps: facts.apps.map((a) => ({ server, name: a.name, project: projectOf(a), environment: environmentOf(a), image: a.image, serving: a.container !== null, deployed: a.last_deployment !== null })),
+    apps: facts.apps.map((a) => ({ server, name: a.name, project: projectOf(a), environment: environmentOf(a), image: a.image, serving: a.container !== null && !appStopped(a), deployed: a.last_deployment !== null })),
     jobs: facts.jobs.map((j) => ({ server, name: j.name, ...project(ownerOfJob(facts, j.name)), schedule: j.schedule, running: j.running, paused: j.paused })),
     databases: facts.databases.map((d) => ({ server, name: d.name, ...project(ownerOfDatabase(facts, d.name)), target: `${d.user}@${d.host}:${d.port}/${d.database}` })),
     containers: (containers.data ?? []).map((c) => ({ server, name: c.name, running: c.state === "running" || c.state === "restarting", managed: Boolean(c.labels?.[APP_LABEL]), app: c.labels?.[APP_LABEL] || undefined })),

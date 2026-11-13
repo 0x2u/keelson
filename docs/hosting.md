@@ -86,7 +86,7 @@ The SSH login you type when adding a server is used for that one request and nev
 Back up, update the dashboard, then update each server's agent.
 
 1. **Back up.** *Settings → Backup* downloads a copy of the database (see [What to back up](#what-to-back-up)). Keep the recovery file with your master key too.
-2. **Update the dashboard.** On the machine that hosts it, run the install command of the release you want:
+2. **Update the dashboard.** With the [one-click update](#one-click-update) set up, press **Update to vX.Y.Z** in *Settings*. Otherwise, on the machine that hosts it, run the install command of the release you want:
 
    ```bash
    curl -fsSL https://github.com/0x2u/keelson/releases/download/vX.Y.Z/install.sh | sudo sh -s -- --version vX.Y.Z
@@ -100,6 +100,26 @@ Back up, update the dashboard, then update each server's agent.
 **Pin the version in production.** `KEELSON_VERSION` in `/opt/keelson/.env` is the release the dashboard runs, and the install command with `--version` writes it. The default, `latest`, moves the next time `docker compose pull` runs. Use a fixed `vX.Y.Z` and update when you decide to.
 
 **Update available.** Once a day the dashboard asks `api.github.com` for the latest release and shows *Update available* in *Settings* when yours is older. The request carries the dashboard's IP address and a User-Agent with the dashboard version, and nothing else. Set `KEELSON_UPDATE_CHECK=off` (in `dashboard.env`, then `docker compose up -d`) to make no outbound call at all.
+
+### One-click update
+
+When the host runs the updater, *Settings → About* offers **Update to vX.Y.Z** next to *Update available*. It asks for the unlock like the other dangerous actions, then shows the progress: *Restarting…* while the dashboard is down (about a minute), then *Updated to vX.Y.Z*, or the reason it failed.
+
+**What it needs.** A host with systemd, Docker and root, and a dashboard pinned to a release (`KEELSON_VERSION=vX.Y.Z` in `/opt/keelson/.env`, see above). With `latest` the updater refuses and tells you to pin a version. Without the updater the page shows the command of step 2 instead, and the button never appears. `KEELSON_UPDATE_CHECK=off` turns all of this off.
+
+**Enabling it on an existing install.** Run the install command of a release that has it, once, with `sudo`:
+
+```bash
+curl -fsSL https://github.com/0x2u/keelson/releases/download/vX.Y.Z/install.sh | sudo sh -s -- --version vX.Y.Z
+```
+
+It adds `/opt/keelson/update.sh`, the folder `/opt/keelson/run` (mounted in the dashboard container at `/run/keelson`) and two systemd units, `keelson-update.path` and `keelson-update.service`, and says so. Without root or without systemd it says that the updater is not set up and why, and the dashboard works as before. Run the command again without `--version` and the updater is installed or repaired the same way; it needs a release that ships `update.sh` (a pinned older release does not: the script says so and carries on).
+
+**What happens.** The dashboard writes `run/update-request.json`, the path unit starts `update.sh`, and it does what step 2 does for that version: copy the database to `/opt/keelson/backups`, pull the images, restart. The progress is in `run/update-status.json` and the full output in `/opt/keelson/update.log`. Only one update runs at a time, and the request is deleted before anything else, so a failing update does not repeat.
+
+**Automatic rollback.** If the installer fails or the new dashboard is not healthy within about a minute, `update.sh` stops the stack, puts back `.env` and the compose files, restores the database copy it made in this run, and starts the previous version again from the image already on the machine (nothing is pulled). Settings then shows *Rolled back to vX: <cause>*. If even that fails the status says *failed*, with the cause of both, and `docker compose up -d` in `/opt/keelson` is what to try after reading `update.log`. A rollback only restores the database when the dashboard was replaced, and says when no copy could be made.
+
+**Security.** The dashboard container stays as locked down as before: read-only, no capabilities, no `docker.sock`. The only thing it can do is write one small file into `run/`. The host treats that file as untrusted: it reads nothing but the `version` string, which must be a plain `vX.Y.Z` strictly newer than the pinned one (no downgrade, no prerelease, no other text, never part of a command), and it downloads `install.sh` from `github.com/0x2u/keelson/releases` for that version. So the dashboard can ask for a newer published release of this project by its number, and nothing else; the host validates it and does the work. The dashboard itself only accepts the latest release it found in its daily check. Anyone who can write in `/opt/keelson/run` can do the same, so keep that folder to the dashboard's user and root (install.sh creates it that way). Like the install command, `install.sh` and `update.sh` are fetched over https from the release and are not signed.
 
 ## Restore the dashboard
 

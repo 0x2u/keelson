@@ -91,7 +91,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: ShellCheck
-        run: shellcheck deploy/install.sh
+        run: shellcheck deploy/install.sh deploy/update.sh deploy/tests/*.sh
+      # The updater runs as root on a file the dashboard container wrote: its tests stand in for docker, curl and systemctl.
+      - name: The updater and the installer's part of it
+        run: |
+          sh deploy/tests/update-test.sh
+          sh deploy/tests/install-updater-test.sh
       - name: Compose files
         env:
           KEELSON_DOMAIN: keelson.example.com
@@ -179,7 +184,8 @@ jobs:
           cache-to: type=gha,scope=ci-dashboard,mode=max
 
   # Runs the real install script against the image built from this commit (its testing hooks keep it off the registry and on
-  # a free loopback port), then runs it again with the same version: the second run must keep the data volume.
+  # a free loopback port), then runs it again with the same version: the second run must keep the data volume. Then the updater
+  # (deploy/update.sh) updates a copy of it, and goes back when the new version is not healthy.
   install-smoke:
     name: Install script
     runs-on: ubuntu-latest
@@ -225,6 +231,10 @@ jobs:
         if: always()
         working-directory: ${{ runner.temp }}/keelson
         run: docker compose down -v || true
+      # The updater against this engine: the install above is gone, this one installs again, asks for an update the way the dashboard does,
+      # and for one that never gets healthy (it must come back by itself). Cleans up after itself.
+      - name: Update with update.sh, and roll back
+        run: sh deploy/tests/update-smoke.sh keelson-dashboard-ci:ci
 
   # The tests that need a real Docker engine or a real Caddy container: they skip unless these variables are set, so the
   # other jobs stay fast and this one is the proof that the agent still works against the real thing.

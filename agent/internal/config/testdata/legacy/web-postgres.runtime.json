@@ -6,6 +6,7 @@
       "project": "web-demo",
       "effective_project": "web-demo",
       "environment": "production",
+      "enabled": true,
       "image": "keelson-local/web-demo",
       "env_file": "",
       "env": {
@@ -22,6 +23,7 @@
       "stable_after_explicit": false,
       "drain_seconds": 5,
       "soak_seconds": 30,
+      "canary": null,
       "verify": [],
       "analysis": null,
       "keep_images": 3,

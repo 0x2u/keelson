@@ -59,6 +59,24 @@ describe("pipeline", () => {
     const d = dep({ trigger: "rollback", phases: [phase("release", "skipped", 0, 0), phase("switch", "done", 0, 6), { ...phase("live", "done", 6, 7), name: "teleport" as PhaseName }] });
     expect(states(d)).toEqual(["release:skipped", "switch:done"]);
   });
+
+  it("draws a reported canary between the switch and the soak", () => {
+    const d = dep({ phases: [phase("release", "done", 0, 1), phase("switch", "done", 1, 2), phase("canary", "done", 2, 62), phase("soak", "done", 62, 92), phase("live", "done", 92, 93)] });
+    expect(states(d)).toEqual(["release:done", "switch:done", "canary:done", "soak:done", "live:done"]);
+    expect(pipeline(d)?.steps[2].label).toBe("Canary");
+  });
+
+  it("leaves out a canary that was never reported: succeeded, failed in the switch, running", () => {
+    expect(states(dep({ phases: [phase("release", "done", 0, 1), phase("switch", "done", 1, 2), phase("soak", "done", 2, 3), phase("live", "done", 3, 4)] }))).toEqual(["release:done", "switch:done", "soak:done", "live:done"]);
+    expect(states(dep({ status: "failed", phases: [phase("release", "done", 0, 1), phase("switch", "failed", 1, 2)] }))).toEqual(["release:done", "switch:failed", "soak:notReached", "live:notReached"]);
+    expect(states(dep({ status: "running", phases: [phase("release", "done", 0, 1), phase("switch", "running", 1)] }))).toEqual(["release:done", "switch:running", "soak:pending", "live:pending"]);
+  });
+
+  it("draws a failed canary as failed, with the soak and live not reached", () => {
+    const d = dep({ status: "rolled_back", phases: [phase("release", "done", 0, 1), phase("switch", "done", 1, 2), phase("canary", "failed", 2, 30)] });
+    expect(states(d)).toEqual(["release:done", "switch:done", "canary:failed", "soak:notReached", "live:notReached"]);
+    expect(pipeline(d)?.failed?.label).toBe("Canary");
+  });
 });
 
 describe("stepDuration", () => {

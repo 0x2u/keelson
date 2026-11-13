@@ -10,7 +10,7 @@ import { parseRange } from "@/lib/history-core";
 import { loadServer } from "@/lib/data";
 import { canRunApps } from "@/lib/machine-core";
 import { legacyTabHref } from "@/lib/nav-core";
-import { serverContainers, serverDisk, serverHostHistory, serverInfo, serverSystem } from "@/lib/server-data";
+import { serverApps, serverContainers, serverDisk, serverHostHistory, serverInfo, serverSystem } from "@/lib/server-data";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -48,7 +48,7 @@ export default async function ServerOverviewPage({ params, searchParams }: { par
         <DeploymentsSection serverId={id} />
       </Suspense>
       <Suspense fallback={<HealthSkeleton />}>
-        <ServerHealth serverId={id} info={serverInfo(id)} system={serverSystem(id)} containers={serverContainers(id)} />
+        <ServerHealth serverId={id} info={serverInfo(id)} system={serverSystem(id)} containers={serverContainers(id)} apps={serverApps(id)} />
       </Suspense>
       {!machine && (
         <Suspense fallback={<HostHistorySkeleton />}>

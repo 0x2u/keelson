@@ -201,3 +201,33 @@ func TestApplyReportsCaddyErrors(t *testing.T) {
 		t.Error("an unreachable admin API must be an error")
 	}
 }
+
+// A stopped app answers its hosts itself: no upstream, a 503 and a text, never a reverse proxy to a port nobody listens on.
+func TestStoppedRouteAnswers503InsteadOfProxying(t *testing.T) {
+	routes := caddyRoutes(config.Proxy{}, []Route{
+		{App: "live", Hosts: []string{"live.example.com"}, Upstream: "127.0.0.1:1"},
+		{App: "off", Hosts: []string{"off.example.com", "www.off.example.com"}, Upstream: "127.0.0.1:2", Stopped: true},
+	})
+	b, _ := json.Marshal(routes)
+	var got []struct {
+		Match  []struct{ Host []string }
+		Handle []map[string]any
+	}
+	if err := json.Unmarshal(b, &got); err != nil || len(got) != 2 {
+		t.Fatalf("%v: %s", err, b)
+	}
+	live, off := got[0], got[1]
+	if live.Handle[0]["handler"] != "reverse_proxy" {
+		t.Errorf("an app that runs is proxied: %v", live.Handle)
+	}
+	h := off.Handle[0]
+	if len(off.Handle) != 1 || h["handler"] != "static_response" || h["status_code"] != float64(503) || h["body"] != StoppedBody || h["upstreams"] != nil {
+		t.Errorf("a stopped app answers 503 and proxies nothing: %v", off.Handle)
+	}
+	if len(off.Match[0].Host) != 2 || off.Match[0].Host[1] != "www.off.example.com" {
+		t.Errorf("every host of the app answers: %v", off.Match)
+	}
+	if !strings.Contains(string(b), "This app is stopped.") {
+		t.Errorf("the text the visitor reads: %s", b)
+	}
+}

@@ -171,3 +171,18 @@ func TestRenderNginxMarksAPlaceholderDown(t *testing.T) {
 		}
 	}
 }
+
+// nginx cannot load a server block whose upstream is missing, so a stopped app keeps its upstream, marked down.
+func TestRenderNginxKeepsAStoppedAppsUpstreamDown(t *testing.T) {
+	got := string(RenderNginx([]Route{
+		{App: "off", Upstream: "127.0.0.1:3001", Stopped: true},
+		{App: "web", Upstream: "127.0.0.1:3002"},
+		{App: "never", Stopped: true}, // never deployed and no host port: no address to name
+	}))
+	if !strings.Contains(got, "upstream keelson_off {\n    server 127.0.0.1:3001 down;\n}") {
+		t.Errorf("a stopped app's upstream is down:\n%s", got)
+	}
+	if !strings.Contains(got, "server 127.0.0.1:3002;\n") || strings.Contains(got, "keelson_never") {
+		t.Errorf("the others are as before, an app without an address is left out:\n%s", got)
+	}
+}

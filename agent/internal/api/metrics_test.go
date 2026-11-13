@@ -24,12 +24,14 @@ var (
 	t0 = time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
 
 	metricsApps = []deploy.AppStatus{
-		{Name: "shop", Project: "shop", Environment: "production",
+		{Name: "shop", Project: "shop", Environment: "production", Enabled: true,
 			Container:      &docker.Detail{RestartCount: 2, State: docker.State{Running: true, StartedAt: &t0, Health: "healthy"}},
 			LastDeployment: &store.Deployment{Status: store.StatusSucceeded, StartedAt: t0}},
-		{Name: "blog", Container: &docker.Detail{State: docker.State{Running: true, Health: "unhealthy"}},
+		{Name: "blog", Enabled: true, Container: &docker.Detail{State: docker.State{Running: true, Health: "unhealthy"}},
 			LastDeployment: &store.Deployment{Status: store.StatusRolledBack, StartedAt: t0.Add(time.Hour)}},
-		{Name: "stopped"},
+		{Name: "stopped", Enabled: true},
+		// The file stops it: its container being down is not an outage, so there is no keelson_app_up series for it.
+		{Name: "paused", Enabled: false, Container: &docker.Detail{State: docker.State{Running: false}}},
 		{Name: "builder", BuildOnly: true},
 	}
 )
@@ -134,6 +136,9 @@ func TestMetricsReportEachAppJobBackupAndProof(t *testing.T) {
 		`keelson_app_last_deployment_success{app="blog"} 0`,
 		`keelson_app_last_deployment_timestamp_seconds{app="blog",status="rolled_back"} ` + ts(t0.Add(time.Hour)),
 		`keelson_app_up{app="stopped"} 0`,
+		`keelson_app_enabled{app="paused"} 0`,
+		`keelson_app_enabled{app="stopped"} 1`,
+		`keelson_app_enabled{app="shop",project="shop",environment="production"} 1`,
 		`keelson_job_last_run_success{job="report",project="shop"} 0`,
 		// The latest run failed; the last success is the newest successful one, not the oldest.
 		`keelson_job_last_success_timestamp_seconds{job="report",project="shop"} ` + ts(t0.Add(-24*time.Hour)),
@@ -149,8 +154,9 @@ func TestMetricsReportEachAppJobBackupAndProof(t *testing.T) {
 		}
 	}
 	for _, absent := range []string{
-		"builder",    // a build-only app runs nothing
-		"no-backups", // a database without a backup section has no backup series
+		"builder",                     // a build-only app runs nothing
+		`keelson_app_up{app="paused"`, // an app the file stops is not down: `keelson_app_up == 0` must not match it
+		"no-backups",                  // a database without a backup section has no backup series
 		`keelson_job_last_run_success{job="backup-shop"`,                // a run still going says nothing
 		`keelson_backup_last_success_timestamp_seconds{database="shop"`, // it never succeeded: the series is absent, not 0
 	} {

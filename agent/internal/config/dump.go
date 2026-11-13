@@ -53,6 +53,7 @@ type rtApp struct {
 	Project              string            `json:"project"`
 	EffectiveProject     string            `json:"effective_project"`
 	Environment          string            `json:"environment"`
+	Enabled              bool              `json:"enabled"` // false: the file stops the app (enabled: false)
 	Image                string            `json:"image"`
 	EnvFile              string            `json:"env_file"`
 	Env                  map[string]string `json:"env"`
@@ -66,6 +67,7 @@ type rtApp struct {
 	StableAfterExplicit  bool              `json:"stable_after_explicit"`
 	DrainSeconds         *float64          `json:"drain_seconds"`
 	SoakSeconds          *float64          `json:"soak_seconds"`
+	Canary               *rtCanary         `json:"canary"`
 	Verify               []rtVerify        `json:"verify"`
 	Analysis             *rtAnalysis       `json:"analysis"`
 	KeepImages           int               `json:"keep_images"`
@@ -87,6 +89,11 @@ type rtAppManagedDB struct {
 type rtVerify struct {
 	Path   string `json:"path"`
 	Status int    `json:"status"`
+}
+
+type rtCanary struct {
+	Steps       []int   `json:"steps"`
+	HoldSeconds float64 `json:"hold_seconds"`
 }
 
 type rtAnalysis struct {
@@ -397,7 +404,7 @@ func (c *Config) runtime() rtDump {
 func (c *Config) appRuntime(a App) rtApp {
 	out := rtApp{
 		Name: a.Name, Parent: a.Parent, Project: a.Project, EffectiveProject: effectiveProject(a), Environment: a.Stage,
-		Image: a.Image, EnvFile: a.EnvFile, Env: hiddenValues(a.Env), Command: redactArgv(a.Command), Volumes: strs(a.Volumes),
+		Enabled: a.IsEnabled(), Image: a.Image, EnvFile: a.EnvFile, Env: hiddenValues(a.Env), Command: redactArgv(a.Command), Volumes: strs(a.Volumes),
 		Network: a.Network, RestartPolicy: restartPolicy(a.Restart),
 		StopTimeoutSeconds:   a.Stop().Seconds(),
 		HealthTimeoutSeconds: a.HealthWait().Seconds(), StableAfterSeconds: a.StableWait().Seconds(), StableAfterExplicit: a.StableAfterSet,
@@ -407,6 +414,9 @@ func (c *Config) appRuntime(a App) rtApp {
 	}
 	for _, v := range a.Verify {
 		out.Verify = append(out.Verify, rtVerify{Path: v.Path, Status: v.Status})
+	}
+	if a.Canary != nil {
+		out.Canary = &rtCanary{Steps: append([]int{}, a.Canary.Steps...), HoldSeconds: a.Canary.HoldFor().Seconds()}
 	}
 	if a.Analysis != nil {
 		out.Analysis = &rtAnalysis{Address: a.Analysis.PrometheusAddress(), Metrics: []rtMetric{}}

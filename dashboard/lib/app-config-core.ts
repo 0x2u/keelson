@@ -46,12 +46,14 @@ const FIELD_IMPACT: Record<keyof AppConfig, SaveImpact> = {
   soak: "next-deploy",
   verify: "next-deploy",
   analysis: "next-deploy",
+  canary: "next-deploy",
   release: "next-deploy",
   keep_images: "next-deploy",
   build: "next-deploy",
   previews: "live",
   database: "live",
   source: "live",
+  enabled: "live",
 };
 
 const FIELD_LABEL: Record<keyof AppConfig, string> = {
@@ -78,12 +80,14 @@ const FIELD_LABEL: Record<keyof AppConfig, string> = {
   soak: "soak time",
   verify: "pages checked during the soak",
   analysis: "metric gates",
+  canary: "canary rollout",
   release: "release steps",
   keep_images: "images kept",
   build: "build settings",
   previews: "previews",
   database: "managed database",
   source: "source repository",
+  enabled: "running state",
 };
 
 /** Display order of the fields: the identity first, then the rest as the form lists them. */
