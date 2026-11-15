@@ -6,6 +6,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const dir = mkdtempSync(path.join(tmpdir(), "keelson-dashboard-backup-"));
 process.env.KEELSON_DASHBOARD_DATA_DIR = dir;
+process.env.KEELSON_STEP_UP = "on"; // the default is off: the download asks for the unlock only when it is on
 
 let sessionId = "";
 vi.mock("@/lib/session", async () => {

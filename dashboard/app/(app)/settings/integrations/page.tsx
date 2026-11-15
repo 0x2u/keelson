@@ -46,7 +46,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
   if (app) {
     try {
       const overview = await installationOverview();
-      installations = { installations: overview.installations, repos: overview.repos.map((r) => ({ fullName: r.fullName, private: r.private })), truncated: overview.truncated, warnings: overview.warnings };
+      installations = { installations: overview.installations, accounts: overview.accounts, repos: overview.repos.map((r) => ({ fullName: r.fullName, private: r.private })), truncated: overview.truncated, warnings: overview.warnings };
     } catch (err) {
       error = err instanceof GithubAppError ? err.message : "Could not ask GitHub about the installations.";
     }

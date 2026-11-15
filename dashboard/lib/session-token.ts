@@ -5,7 +5,8 @@ import { deriveKey, passwordFingerprint } from "@/lib/env";
 export const SESSION_COOKIE = "keelson_session";
 /** Set after the password is accepted and a second factor is still owed. */
 export const PENDING_COOKIE = "keelson_pending";
-export const SESSION_SECONDS = 12 * 60 * 60;
+/** How long a session cookie, and the session behind it, lives at most (it is SESSION_MAX_MS in lib/auth/store.ts). */
+export const SESSION_SECONDS = 30 * 24 * 60 * 60;
 export const PENDING_SECONDS = 5 * 60;
 
 /**

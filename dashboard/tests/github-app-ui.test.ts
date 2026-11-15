@@ -201,7 +201,7 @@ describe("the GitHub App card", () => {
     expect(html).toContain("Configured");
     expect(html).toContain("4242");
     expect(html).toContain("private key set");
-    expect(html).toContain('href="https://github.com/apps/my-keelson"');
+    expect(html).toContain('href="https://github.com/settings/apps/my-keelson"');
     expect(html).not.toContain('name="privateKey"');
     expect(html).not.toContain("PRIVATE KEY");
     expect(html).toContain("Replace the credentials");
@@ -235,7 +235,7 @@ describe("the GitHub App build card", () => {
     expect(html).toContain('name="previews"');
     expect(input(html, "onPush")).toContain("checked");
     expect(input(html, "previews")).not.toContain("checked");
-    expect(html).toContain('href="https://github.com/apps/my-keelson/installations/new"');
+    expect(html).toContain('href="https://github.com/settings/installations"');
     expect(html).toContain("gets no secrets");
     expect(html).toContain("never a fork");
     expect(html).toContain("Nothing received yet");

@@ -15,6 +15,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 - **A failed deployment stops asking for attention after a day.** Until now, a deployment that ended `failed` or `rolled_back` kept its app on *needs attention* until the next successful one, however old: a rehearsal of a rollback that failed in under a second kept a healthy app flagged for two weeks. It is now flagged for 24 hours, the way an alert that reached nobody is: the agent sent its notification when it happened and the app serves the version it served before. A `rollback_failed` (nothing known to serve), a container that is down and the other items are unchanged, and the deployment stays in the app's history with its status.
+- **Longer sessions.** A session now goes idle after 7 days (it was 2 hours) and ends after 30 (it was 12 hours), so the operator signs in about once a month instead of several times a day. Sessions are still server-side, listed on Settings, Security, and revocable at any time.
+- **Unlocking sensitive changes is off by default.** The padlock in the top bar, and the password and second factor it asks for before a sensitive change, now only exist with `KEELSON_STEP_UP=on`. Without it a signed-in session makes those changes directly; a stolen session cookie is then as powerful as the operator, which is why [Security](docs/reference/security.md) says to keep sessions to trusted devices and to turn it on if that is a risk. An install that wants the previous behaviour sets the variable once.
+
+### Fixed
+- **The GitHub links of the Integrations page.** *Settings on GitHub* no longer points at `github.com/apps/<name>`, the public page of an App, which answers 404 for a private one: it goes to `github.com/settings/apps/<name>` (or the organization's page). *Install on more repositories* is replaced by one *Manage repositories of <account> on GitHub* button per installation, which opens `github.com/settings/installations/<id>` (or the organization's own installation page); the Source page's *install* link opens the list of installed Apps.
 
 ## [0.1.0] - 2026-11-12
 

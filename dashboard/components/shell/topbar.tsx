@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { UnlockButton } from "@/components/shell/UnlockButton";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
-export function Topbar({ authenticator }: { authenticator: boolean }) {
+export function Topbar({ authenticator, stepUp }: { authenticator: boolean; stepUp: boolean }) {
   const palette = useCommandPalette();
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -21,7 +21,7 @@ export function Topbar({ authenticator }: { authenticator: boolean }) {
         <span className="flex-1 text-left">Search…</span>
         <kbd className="hidden rounded border bg-background px-1.5 font-mono text-[10px] sm:inline">⌘K</kbd>
       </button>
-      <UnlockButton authenticator={authenticator} />
+      {stepUp && <UnlockButton authenticator={authenticator} />}
     </header>
   );
 }

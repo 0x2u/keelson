@@ -86,12 +86,26 @@ export function installUrl(slug: string): string {
   return `https://github.com/apps/${slug}/installations/new`;
 }
 
-/** The App's settings page on GitHub: it depends on whether an organization or a person owns it. */
+/**
+ * The App's settings page on GitHub: it depends on whether an organization or a person owns it. An owner that is not known
+ * is taken for the person: github.com/apps/<slug> is the public page of an App and answers 404 for a private one.
+ */
 export function appSettingsUrl(slug: string, owner: { login: string; type: string } | null): string | null {
   if (!isAppSlug(slug)) return null;
-  if (owner === null) return `https://github.com/apps/${slug}`;
-  if (owner.type === "Organization" && isOrgLogin(owner.login)) return `https://github.com/organizations/${owner.login}/settings/apps/${slug}`;
+  if (owner?.type === "Organization" && isOrgLogin(owner.login)) return `https://github.com/organizations/${owner.login}/settings/apps/${slug}`;
   return `https://github.com/settings/apps/${slug}`;
+}
+
+/**
+ * One installation's settings on GitHub, where repositories are added or removed: github.com/settings/installations/<id> for
+ * a person, and the organization's own page for an organization. Null when the account is not usable in an address.
+ */
+export function installationSettingsUrl(installation: { id: number; login: string | null; type: string | null }): string | null {
+  if (!Number.isInteger(installation.id) || installation.id <= 0) return null;
+  if (installation.type === "Organization") {
+    return installation.login !== null && isOrgLogin(installation.login) ? `https://github.com/organizations/${installation.login}/settings/installations/${installation.id}` : null;
+  }
+  return `https://github.com/settings/installations/${installation.id}`;
 }
 
 /** The part of GitHub's conversion answer that is used: client_id and client_secret are deliberately not read. */

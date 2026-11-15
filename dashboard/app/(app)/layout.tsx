@@ -7,6 +7,7 @@ import { Topbar } from "@/components/shell/topbar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { dashboardVersion } from "@/lib/agent-binaries";
 import { totpEnabled } from "@/lib/auth/store";
+import { stepUpEnabled } from "@/lib/env";
 import { listServers } from "@/lib/servers";
 import { releaseCheckSoon } from "@/lib/release-check";
 import { requireSession } from "@/lib/session";
@@ -27,7 +28,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <ShellOwnerProvider>
           <AppSidebar servers={servers} version={dashboardVersion()} update={release.status === "newer" && release.latest ? { tag: release.latest.tag } : null} />
           <SidebarInset id="main" className="min-w-0 bg-[radial-gradient(70rem_26rem_at_60%_-10rem,color-mix(in_srgb,var(--brand)_6%,transparent),transparent)]">
-            <Topbar authenticator={totpEnabled()} />
+            <Topbar authenticator={totpEnabled()} stepUp={stepUpEnabled()} />
             <div className="flex-1 px-4 py-6 md:px-8">
               <div className="mx-auto w-full max-w-6xl">{children}</div>
             </div>

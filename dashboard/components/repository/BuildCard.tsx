@@ -96,9 +96,9 @@ export function BuildCard({
           )}
           {appConfigured && appSlug && (
             <p className="text-xs text-muted-foreground">
-              The App must be installed on the repository:{" "}
-              <a href={`https://github.com/apps/${appSlug}/installations/new`} target="_blank" rel="noreferrer noopener" className="underline underline-offset-4">
-                install {appSlug}
+              The App must be installed on the repository: add it in{" "}
+              <a href="https://github.com/settings/installations" target="_blank" rel="noreferrer noopener" className="underline underline-offset-4">
+                the {appSlug} installation on GitHub
               </a>
               .
             </p>

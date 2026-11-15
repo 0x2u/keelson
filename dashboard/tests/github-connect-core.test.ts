@@ -6,6 +6,7 @@ import {
   appSettingsUrl,
   buildManifest,
   defaultAppName,
+  installationSettingsUrl,
   installUrl,
   isFailureCode,
   isOrgLogin,
@@ -76,7 +77,11 @@ describe("addresses on GitHub", () => {
     expect(installUrl("my-keelson")).toBe("https://github.com/apps/my-keelson/installations/new");
     expect(appSettingsUrl("my-keelson", { login: "me", type: "User" })).toBe("https://github.com/settings/apps/my-keelson");
     expect(appSettingsUrl("my-keelson", { login: "acme", type: "Organization" })).toBe("https://github.com/organizations/acme/settings/apps/my-keelson");
-    expect(appSettingsUrl("my-keelson", null)).toBe("https://github.com/apps/my-keelson");
+    expect(appSettingsUrl("my-keelson", null)).toBe("https://github.com/settings/apps/my-keelson");
+    expect(installationSettingsUrl({ id: 174138968, login: "0x2u", type: "User" })).toBe("https://github.com/settings/installations/174138968");
+    expect(installationSettingsUrl({ id: 7, login: "acme", type: "Organization" })).toBe("https://github.com/organizations/acme/settings/installations/7");
+    expect(installationSettingsUrl({ id: 7, login: "../x", type: "Organization" })).toBeNull();
+    expect(installationSettingsUrl({ id: 0, login: "me", type: "User" })).toBeNull();
     expect(appSettingsUrl("../x", null)).toBeNull();
   });
 });

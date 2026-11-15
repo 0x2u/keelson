@@ -1,15 +1,17 @@
 import "server-only";
 import { audit, clearLoginFailures, elevateSession, isLoginBlocked, recordLoginFailure, recordSecondFactorFailure, recoveryCodesLeft, secondFactorWaitMs, spendRecoveryCode, totpEnabled, verifyTotpLogin } from "@/lib/auth/store";
+import { stepUpEnabled } from "@/lib/env";
 import { confirmPassword } from "@/lib/auth/confirm";
 import { clientInfo, currentSession } from "@/lib/session";
 import { STEP_UP_MESSAGE, type StepUp } from "@/lib/step-up-core";
 
 /**
  * The message to show when this session may not do a sensitive thing yet, or null when it may: it has proved the password
- * and the authenticator code within the last ten minutes. Every demand is audited, with what asked for it.
+ * and the authenticator code within the last ten minutes. Every demand is audited, with what asked for it. Nothing is asked
+ * unless the operator turned step-up on (KEELSON_STEP_UP=on, see lib/env.ts): every sensitive change then goes through here.
  */
 export async function stepUpError(verdict: StepUp, what: string): Promise<string | null> {
-  if (!verdict.required) return null;
+  if (!verdict.required || !stepUpEnabled()) return null;
   const session = await currentSession();
   if (!session) return "Your session has ended. Sign in again.";
   if (session.elevatedUntil !== null && session.elevatedUntil > Date.now()) return null;

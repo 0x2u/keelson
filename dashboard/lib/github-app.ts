@@ -194,9 +194,19 @@ export interface InstalledRepo {
   installationId: number;
 }
 
+/** An account (a person or an organization) the App is installed on. */
+export interface InstallationAccount {
+  id: number;
+  login: string | null;
+  /** GitHub's account type: "User" or "Organization". */
+  type: string | null;
+}
+
 export interface InstallationOverview {
   /** How many installations the App has (on accounts and organizations), including ones that could not be read. */
   installations: number;
+  /** Each installation, with the account it is on: what the Integrations page links to (the installation's settings on GitHub). */
+  accounts: InstallationAccount[];
   repos: InstalledRepo[];
   /** The list stopped at the cap: there are more repositories than shown. */
   truncated: boolean;
@@ -213,7 +223,7 @@ export const REPOS_CACHE_MS = 60 * 1000;
 const PAGE = 100;
 const MAX_PAGES = 10;
 
-const InstallationEntry = z.object({ id: z.number().int().positive(), account: z.object({ login: z.string() }).nullish(), suspended_at: z.string().nullish() });
+const InstallationEntry = z.object({ id: z.number().int().positive(), account: z.object({ login: z.string(), type: z.string().nullish() }).nullish(), suspended_at: z.string().nullish() });
 const RepoEntry = z.object({ full_name: z.string().min(1), default_branch: z.string().min(1).nullish(), private: z.boolean(), pushed_at: z.string().nullish() });
 
 async function pages<T>(fetchPage: (page: number) => Promise<T[]>, limit: number): Promise<T[]> {
@@ -291,7 +301,8 @@ async function readInstallations(deps: AppDeps): Promise<InstallationOverview> {
   }
   // Newest push first; repositories without a push time keep their order after the rest.
   const order = found.map((f, i) => ({ ...f, i })).sort((a, b) => (a.pushedAt === b.pushedAt ? a.i - b.i : a.pushedAt < b.pushedAt ? 1 : -1));
-  return { installations: listed.length, repos: order.map((o) => o.repo), truncated, warnings };
+  const accounts = installations.map((i) => ({ id: i.id, login: i.account?.login ?? null, type: i.account?.type ?? null }));
+  return { installations: listed.length, accounts, repos: order.map((o) => o.repo), truncated, warnings };
 }
 
 /** The listing, kept for a minute in memory (never the tokens it was made with). Concurrent callers share one read. */

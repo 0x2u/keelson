@@ -3,11 +3,15 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { throttleBucket } from "@/lib/client-ip";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { db } from "@/lib/db";
+import { SESSION_SECONDS } from "@/lib/session-token";
 import { base32Encode, generateSecret, verifyTotp } from "@/lib/auth/totp";
 
-/** Idle sessions end after 2 hours; no session lives more than 12 hours. */
-export const SESSION_IDLE_MS = 2 * 60 * 60 * 1000;
-export const SESSION_MAX_MS = 12 * 60 * 60 * 1000;
+/**
+ * Idle sessions end after 7 days; no session lives more than 30 days (the lifetime of its cookie). Both are server-side and a
+ * session can be revoked at any time from Settings, Security.
+ */
+export const SESSION_IDLE_MS = 7 * 24 * 60 * 60 * 1000;
+export const SESSION_MAX_MS = SESSION_SECONDS * 1000;
 /** last_seen is written at most this often, so reads do not become writes. */
 const TOUCH_EVERY_MS = 60 * 1000;
 

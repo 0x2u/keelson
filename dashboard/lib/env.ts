@@ -217,6 +217,15 @@ export function updateCheckEnabled(): boolean {
   return !["off", "false", "0"].includes(process.env.KEELSON_UPDATE_CHECK?.trim().toLowerCase() ?? "");
 }
 
+/**
+ * Whether sensitive changes ask for the password and the second factor again (KEELSON_STEP_UP=on). Off by default: a session
+ * that is signed in can change what runs on the servers. Turn it on when the session cookie is a risk worth the extra step
+ * (a shared computer, a long-lived session you do not trust).
+ */
+export function stepUpEnabled(): boolean {
+  return ["on", "true", "1", "yes"].includes(process.env.KEELSON_STEP_UP?.trim().toLowerCase() ?? "");
+}
+
 /** The address the check reads: KEELSON_UPDATE_CHECK_URL (for tests and development only) or GitHub's. */
 export function updateCheckUrl(): string {
   return process.env.KEELSON_UPDATE_CHECK_URL?.trim() || RELEASE_CHECK_URL;

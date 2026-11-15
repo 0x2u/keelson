@@ -34,7 +34,7 @@ Open the address and enter the setup token. Then:
 2. Download the recovery file and keep it somewhere safe, away from this machine. It holds the master key that encrypts the credentials the dashboard stores. Without it, a lost data volume cannot be read again.
 3. Add a second factor (an authenticator app or a passkey), or skip it for now. You can do it later in Settings, Security.
 
-Changes that start something on a server (adding a server, creating a project) ask you to unlock with your password first. The padlock at the top right does it.
+Changes that start something on a server (adding a server, creating a project) go through directly once you are signed in. If you turn on `KEELSON_STEP_UP=on` ([Hosting](hosting.md)), they ask you to unlock with your password first, and a padlock appears at the top right.
 
 ## 3. Connect a server
 

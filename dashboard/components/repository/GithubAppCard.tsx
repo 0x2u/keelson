@@ -109,7 +109,7 @@ export function GithubAppCard({ app, webhookSecretSet }: { app: { appId: string;
                 <>
                   {" "}
                   (
-                  <a href={`https://github.com/apps/${app.slug}`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline-offset-4 hover:underline">
+                  <a href={`https://github.com/settings/apps/${app.slug}`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline-offset-4 hover:underline">
                     {app.slug} <ExternalLinkIcon className="size-3" />
                   </a>
                   )

@@ -7,6 +7,7 @@ import * as policy from "@/lib/step-up-core";
 
 const dir = mkdtempSync(path.join(tmpdir(), "keelson-step-up-"));
 process.env.KEELSON_DASHBOARD_DATA_DIR = dir;
+process.env.KEELSON_STEP_UP = "on"; // the default is off: these tests are about what happens when it is on
 
 let sessionId = "";
 vi.mock("@/lib/session", async () => {
@@ -140,6 +141,18 @@ describe("the policy: what needs the session to be unlocked", () => {
 });
 
 describe("asking the session to be unlocked", () => {
+  it("asks nothing, whatever the change, unless step-up is turned on: it is off by default", async () => {
+    const refusal = await stepUpError(policy.variables(), "x");
+    expect(refusal).toMatch(/Unlock changes first/); // on in this file
+    for (const off of [undefined, "", "off", "false", "0", "no"]) {
+      if (off === undefined) delete process.env.KEELSON_STEP_UP;
+      else process.env.KEELSON_STEP_UP = off;
+      expect(await stepUpError(policy.variables(), "x")).toBeNull();
+    }
+    process.env.KEELSON_STEP_UP = "on";
+    expect(await stepUpError(policy.variables(), "x")).toMatch(/Unlock changes first/);
+  });
+
   it("lets a change that needs nothing through without looking at the session", async () => {
     sessionId = "";
     expect(await stepUpError({ required: false }, "x")).toBeNull();

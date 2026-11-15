@@ -111,6 +111,14 @@ describe("sessions", () => {
     expect(store.liveSession(gone.id, NOW + 10)).toBeNull();
   });
 
+  it("stays signed in over a long weekend without activity, and its cookie lasts as long as the session", async () => {
+    const day = 24 * 3_600_000;
+    const s = store.createSessionRecord({ method: "password" }, NOW);
+    expect(store.liveSession(s.id, NOW + 3 * day)).not.toBeNull();
+    expect(store.liveSession(s.id, NOW + 3 * day + 8 * day)).toBeNull(); // 8 days after its last use
+    expect(store.SESSION_MAX_MS).toBe((await import("@/lib/session-token")).SESSION_SECONDS * 1000);
+  });
+
   it("lists live sessions and signs out all the others", () => {
     const a = store.createSessionRecord({ method: "password" }, NOW);
     const b = store.createSessionRecord({ method: "passkey" }, NOW + 10);

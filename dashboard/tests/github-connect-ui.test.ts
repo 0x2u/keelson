@@ -41,7 +41,7 @@ function stubGithub(installations: { id: number; repos: { full_name: string; pri
     const u = new URL(String(url));
     if (status !== 200) return new Response("{}", { status });
     if (u.pathname === "/app") return Response.json({ slug: "my-keelson" });
-    if (u.pathname === "/app/installations") return Response.json(installations.map((i) => ({ id: i.id, account: { login: "me" } })));
+    if (u.pathname === "/app/installations") return Response.json(installations.map((i) => ({ id: i.id, account: { login: "acme", type: "Organization" } })));
     const mint = u.pathname.match(/^\/app\/installations\/(\d+)\/access_tokens$/);
     if (mint) return Response.json({ token: `ghs_${mint[1]}` }, { status: 201 });
     if (u.pathname === "/installation/repositories") {
@@ -111,8 +111,8 @@ describe("the Integrations page", () => {
     expect(html).toContain("acme/shop");
     expect(html).toContain("acme/site");
     expect(html.match(/private/g)).toHaveLength(1);
-    expect(html).toContain('href="https://github.com/apps/keelson-ab/installations/new"');
-    expect(html).toContain("Install on more repositories");
+    expect(html).toContain('href="https://github.com/organizations/acme/settings/installations/1"');
+    expect(html).toContain("Manage repositories of acme on GitHub");
     expect(html).toContain("Disconnect");
     expect(html).toContain("Connected");
     expect(html).not.toContain("Install the App to choose repositories");

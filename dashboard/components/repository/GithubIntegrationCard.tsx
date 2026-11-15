@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { appSettingsUrl, installUrl } from "@/lib/github-connect-core";
+import { appSettingsUrl, installationSettingsUrl, installUrl } from "@/lib/github-connect-core";
 import { toastCopy } from "@/lib/toast-core";
 
 export interface InstalledRepoView {
@@ -30,6 +30,8 @@ export interface IntegrationApp {
 /** What is known of the App's installations: absent when GitHub could not be asked (`error` says why). */
 export interface InstallationsView {
   installations: number;
+  /** The accounts the App is installed on: each links to its installation's settings on GitHub, where repositories are added. */
+  accounts: { id: number; login: string | null; type: string | null }[];
   repos: InstalledRepoView[];
   truncated: boolean;
   warnings: string[];
@@ -175,11 +177,17 @@ export function GithubIntegrationCard({ app, installations, error, defaultName, 
             )}
 
             <div className="flex flex-wrap gap-2">
-              {install && installed && (
-                <Button variant="outline" asChild>
-                  <a href={install}>Install on more repositories</a>
-                </Button>
-              )}
+              {installed &&
+                installations?.accounts.map((a) => {
+                  const href = installationSettingsUrl(a);
+                  return href ? (
+                    <Button key={a.id} variant="outline" asChild>
+                      <a href={href} target="_blank" rel="noreferrer noopener">
+                        Manage repositories{a.login ? ` of ${a.login}` : ""} on GitHub <ExternalLinkIcon className="size-3" />
+                      </a>
+                    </Button>
+                  ) : null;
+                })}
               <RefreshButton />
               <Button variant="outline" onClick={() => setConfirming("replace")}>
                 Create a new App instead

@@ -28,7 +28,7 @@ type Repo = { full_name: string; default_branch?: string; private: boolean; push
  * A GitHub with installations, each with repositories; pages are honoured (`per_page`, `page`). An installation's
  * token is `ghs_<id>` so a request made with another installation's token is visible.
  */
-function fakeGithub(installations: { id: number; login?: string; suspended?: boolean; tokenStatus?: number; repos: Repo[] }[]) {
+function fakeGithub(installations: { id: number; login?: string; type?: string; suspended?: boolean; tokenStatus?: number; repos: Repo[] }[]) {
   const calls: Call[] = [];
   const fetch = async (url: string, init: RequestInit): Promise<Response> => {
     const u = new URL(url);
@@ -38,7 +38,7 @@ function fakeGithub(installations: { id: number; login?: string; suspended?: boo
     const page = Number(u.searchParams.get("page") ?? 1);
     const slice = <T>(all: T[]) => all.slice((page - 1) * per, page * per);
     if (u.pathname === "/app/installations") {
-      return Response.json(slice(installations.map((i) => ({ id: i.id, account: i.login ? { login: i.login } : null, suspended_at: i.suspended ? "2026-01-01T00:00:00Z" : null }))));
+      return Response.json(slice(installations.map((i) => ({ id: i.id, account: i.login ? { login: i.login, type: i.type } : null, suspended_at: i.suspended ? "2026-01-01T00:00:00Z" : null }))));
     }
     const mint = u.pathname.match(/^\/app\/installations\/(\d+)\/access_tokens$/);
     if (mint) {
@@ -131,7 +131,22 @@ describe("the repositories the App can reach", () => {
 
   it("reports an App with no installation as zero installations and no repositories", async () => {
     const overview = await lister(fakeGithub([])).overview();
-    expect(overview).toEqual({ installations: 0, repos: [], truncated: false, warnings: [] });
+    expect(overview).toEqual({ installations: 0, accounts: [], repos: [], truncated: false, warnings: [] });
+  });
+
+  it("lists each installation with its account and type, suspended ones included, for the links to GitHub's settings", async () => {
+    const overview = await lister(
+      fakeGithub([
+        { id: 174138968, login: "0x2u", type: "User", repos: [{ full_name: "0x2u/almiron", private: true }] },
+        { id: 9, login: "acme", type: "Organization", suspended: true, repos: [] },
+        { id: 10, repos: [] },
+      ]),
+    ).overview();
+    expect(overview.accounts).toEqual([
+      { id: 174138968, login: "0x2u", type: "User" },
+      { id: 9, login: "acme", type: "Organization" },
+      { id: 10, login: null, type: null },
+    ]);
   });
 
   it("throws a clear error when no App is configured, without calling GitHub", async () => {
