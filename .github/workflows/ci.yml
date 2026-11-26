@@ -29,7 +29,7 @@ jobs:
         working-directory: agent
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -254,7 +254,7 @@ jobs:
       KEELSON_CADDY_TEST: "1"
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -280,7 +280,7 @@ jobs:
           - {arch: arm64, runner: ubuntu-24.04-arm}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -298,7 +298,7 @@ jobs:
         working-directory: agent
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -328,7 +328,7 @@ jobs:
       PROMTOOL_IMAGE: prom/prometheus:v3.16.0
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -359,7 +359,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
